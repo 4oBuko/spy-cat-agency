@@ -168,6 +168,15 @@ func TestDeleteCat(t *testing.T) {
 		doRequestAndExpect(t, request, http.StatusNotFound)
 	})
 }
+
+// ? this only checks if the endpoint works
+// ? for normal testing this test need to insert into empty table
+// ? then add certain number of new entities assert results
+func TestGetAllCats(t *testing.T) {
+	request, _ := http.NewRequest(http.MethodGet, spycatagency.Endpoints.CatGetAll, nil)
+	doRequestAndExpect(t, request, http.StatusOK)
+}
+
 func getCatByIDSuccessfully(t *testing.T, id int) models.Cat {
 	request := newGetCatByIdRequest(id)
 	response := httptest.NewRecorder()

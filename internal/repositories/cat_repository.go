@@ -33,7 +33,20 @@ func (m *MySQLCatRepository) GetById(id int64) (models.Cat, error) {
 }
 
 func (m *MySQLCatRepository) GetAll() ([]models.Cat, error) {
-	return nil, nil
+	var cats []models.Cat
+	getAllQuery := "SELECT id, cat_name, breed, years_of_experience, salary FROM cats"
+	rows, err := m.connection.Query(getAllQuery)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		cat := new(models.Cat)
+		if err := rows.Scan(&cat.Id, &cat.Name, &cat.Breed, &cat.YearsOfExperience, &cat.Salary); err != nil {
+			return nil, err
+		}
+		cats = append(cats, *cat)
+	}
+	return cats, nil
 }
 
 func (m *MySQLCatRepository) DeleteById(id int64) error {

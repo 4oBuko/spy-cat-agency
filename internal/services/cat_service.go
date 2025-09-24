@@ -13,6 +13,7 @@ type CatService interface {
 	GetCatById(ctx context.Context, id int64) (models.Cat, error)
 	UpdateCat(ctx context.Context, id int64, update models.CatUpdate) (models.Cat, error)
 	DeleteById(ctx context.Context, id int64) error
+	GetAllCats(ctx context.Context) ([]models.Cat, error)
 }
 
 type DefaultCatService struct {
@@ -65,4 +66,12 @@ func (d *DefaultCatService) DeleteById(ctx context.Context, id int64) error {
 		return err
 	}
 	return nil
+}
+
+func (d *DefaultCatService) GetAllCats(ctx context.Context) ([]models.Cat, error) {
+	cats, err := d.catRepo.GetAll()
+	if err != nil {
+		return nil, err
+	}
+	return cats, nil
 }
