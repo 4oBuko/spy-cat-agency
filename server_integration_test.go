@@ -235,40 +235,24 @@ func TestAddNewMission(t *testing.T) {
 				},
 			},
 		}
-		createNewMissionSuccessfully(t, savedCat, newMisson)
+		createNewMissionSuccessfully(t, newMisson)
 	})
 
-	t.Run("new mission without tartest field in request", func(t *testing.T) {
-		newCat := models.Cat{
-			Name:              "Killer Queen",
-			Breed:             "aege",
-			YearsOfExperience: 4,
-			Salary:            1972,
-		}
-		cat := createNewCatSuccessfully(t, newCat)
+	t.Run("new mission without cat", func(t *testing.T) {
 
 		newMission := models.Mission{
-			Targets: nil,
+			Targets: []models.Target{
+				{
+					Name:    "the red dot",
+					Country: "France",
+					Notes:   "Strange red dot that nobody can catch",
+				},
+			},
 		}
 
-		createNewMissionSuccessfully(t, cat, newMission)
+		createNewMissionSuccessfully(t, newMission)
 	})
 
-	t.Run("new mission with empty targets array", func(t *testing.T) {
-		newCat := models.Cat{
-			Name:              "Rina",
-			Breed:             "abob",
-			YearsOfExperience: 3,
-			Salary:            3301,
-		}
-
-		cat := createNewCatSuccessfully(t, newCat)
-		newMission := models.Mission{
-			Targets: make([]models.Target, 0, 1),
-		}
-
-		createNewMissionSuccessfully(t, cat, newMission)
-	})
 }
 
 func getCatByIDSuccessfully(t *testing.T, id int) models.Cat {
@@ -293,9 +277,8 @@ func newGetCatByIdRequest(id int) *http.Request {
 	request, _ := http.NewRequest(http.MethodGet, url, nil)
 	return request
 }
-func createNewMissionSuccessfully(t *testing.T, cat models.Cat, newMission models.Mission) models.Mission {
+func createNewMissionSuccessfully(t *testing.T, newMission models.Mission) models.Mission {
 	t.Helper()
-	newMission.CatId = cat.Id
 	body := marshal(t, newMission)
 	request, _ := http.NewRequest(http.MethodPost, spycatagency.Endpoints.MissionCreate, bytes.NewReader(body))
 	response := httptest.NewRecorder()

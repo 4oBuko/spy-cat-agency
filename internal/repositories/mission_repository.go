@@ -36,8 +36,16 @@ func (m *MySQLMissionRepository) AddWithTx(ctx context.Context, tx *sql.Tx, miss
 }
 
 func (m *MySQLMissionRepository) add(ctx context.Context, querier Querier, mission models.Mission) (models.Mission, error) {
-	newMissionQuery := `INSERT INTO missions(cat_id) VALUES (?)`
-	result, err := querier.ExecContext(ctx, newMissionQuery, mission.CatId)
+	var result sql.Result
+	var err error
+	if mission.CatId == 0 {
+		newMissionQuery := `INSERT INTO missions () VALUES ()`
+		result, err = querier.ExecContext(ctx, newMissionQuery)
+	} else {
+		newMissionWithCatQuery := `INSERT INTO missions(cat_id) VALUES (?)`
+		result, err = querier.ExecContext(ctx, newMissionWithCatQuery, mission.CatId)
+	}
+
 	if err != nil {
 		return models.Mission{}, err
 	}
@@ -46,7 +54,6 @@ func (m *MySQLMissionRepository) add(ctx context.Context, querier Querier, missi
 		return models.Mission{}, err
 	}
 	return mission, nil
-
 }
 
 func (m *MySQLMissionRepository) WithTransaction(ctx context.Context, fn func(*sql.Tx) (models.Mission, error)) (models.Mission, error) {

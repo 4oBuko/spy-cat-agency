@@ -181,7 +181,7 @@ func (s *Server) handleAddMission(ctx *gin.Context) {
 	var mission models.Mission
 	if err := ctx.BindJSON(&mission); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "invalid data. New mission should have a cat and at least one target",
+			"message": "invalid data. New mission should have at least one target!",
 		})
 		return
 	}

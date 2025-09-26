@@ -10,7 +10,7 @@ CREATE TABLE
 CREATE TABLE
     missions (
         id INT AUTO_INCREMENT PRIMARY KEY,
-        cat_id INT NOT NULL,
+        cat_id INT,
         completed BOOLEAN NOT NULL DEFAULT FALSE,
         CONSTRAINT fk_mission_cat FOREIGN KEY (cat_id) REFERENCES cats (id) ON DELETE CASCADE
     );
