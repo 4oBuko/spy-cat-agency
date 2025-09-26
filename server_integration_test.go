@@ -74,7 +74,47 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
+// ? this test runs first when table cat is empty
+// ? to have independent state from ther tests
+func TestGetAllCats(t *testing.T) {
+	cat1 := models.Cat{
+		Name:              "Silky",
+		Breed:             "abob",
+		YearsOfExperience: 2,
+		Salary:            500,
+	}
+	cat2 := models.Cat{
+		Name:              "Milky",
+		Breed:             "asho",
+		YearsOfExperience: 4,
+		Salary:            1500,
+	}
+	cat3 := models.Cat{
+		Name:              "Morgana",
+		Breed:             "acur",
+		YearsOfExperience: 10,
+		Salary:            5555,
+	}
+	var cats []models.Cat
+	cats = append(cats, createNewCatSuccessfully(t, cat1))
+	cats = append(cats, createNewCatSuccessfully(t, cat2))
+	cats = append(cats, createNewCatSuccessfully(t, cat3))
+	request, _ := http.NewRequest(http.MethodGet, spycatagency.Endpoints.CatGetAll, nil)
+	response := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code)
+
+	allCats := unmarshal[[]models.Cat](t, response.Body.Bytes())
+	require.Equal(t, 3, len(allCats))
+	require.Equal(t, cats[0], allCats[0])
+	require.Equal(t, cats[1], allCats[1])
+	require.Equal(t, cats[2], allCats[2])
+
+}
+
 func TestAddNewCat(t *testing.T) {
+
 	t.Run("add new cat successfully", func(t *testing.T) {
 		newCat := models.Cat{
 			Name:              "Tom",
@@ -140,7 +180,7 @@ func TestUpdateSalary(t *testing.T) {
 		server.Handler().ServeHTTP(response, request)
 
 		require.Equal(t, http.StatusOK, response.Code)
-		updatedCat := unmarshalCat(t, response.Body.Bytes())
+		updatedCat := unmarshal[models.Cat](t, response.Body.Bytes())
 		cat.Salary *= 2
 		assert.Equal(t, cat, updatedCat)
 	})
@@ -169,21 +209,13 @@ func TestDeleteCat(t *testing.T) {
 	})
 }
 
-// ? this only checks if the endpoint works
-// ? for normal testing this test need to insert into empty table
-// ? then add certain number of new entities assert results
-func TestGetAllCats(t *testing.T) {
-	request, _ := http.NewRequest(http.MethodGet, spycatagency.Endpoints.CatGetAll, nil)
-	doRequestAndExpect(t, request, http.StatusOK)
-}
-
 func getCatByIDSuccessfully(t *testing.T, id int) models.Cat {
 	request := newGetCatByIdRequest(id)
 	response := httptest.NewRecorder()
 
 	server.Handler().ServeHTTP(response, request)
 	require.Equal(t, http.StatusOK, response.Code)
-	cat := unmarshalCat(t, response.Body.Bytes())
+	cat := unmarshal[models.Cat](t, response.Body.Bytes())
 	return cat
 }
 
@@ -211,18 +243,18 @@ func createNewCatSuccessfully(t *testing.T, cat models.Cat) models.Cat {
 	server.Handler().ServeHTTP(response, request)
 	require.Equal(t, http.StatusCreated, response.Code)
 
-	persistedCat := unmarshalCat(t, response.Body.Bytes())
+	persistedCat := unmarshal[models.Cat](t, response.Body.Bytes())
 	return persistedCat
 }
 
-func unmarshalCat(t *testing.T, body []byte) models.Cat {
+func unmarshal[T any](t *testing.T, body []byte) T {
 	t.Helper()
-	var persitedCat models.Cat
-	err := json.Unmarshal(body, &persitedCat)
+	var result T
+	err := json.Unmarshal(body, &result)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return persitedCat
+	return result
 
 }
 

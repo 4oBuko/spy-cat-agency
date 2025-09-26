@@ -34,7 +34,7 @@ func (m *MySQLCatRepository) GetById(id int64) (models.Cat, error) {
 
 func (m *MySQLCatRepository) GetAll() ([]models.Cat, error) {
 	var cats []models.Cat
-	getAllQuery := "SELECT id, cat_name, breed, years_of_experience, salary FROM cats"
+	getAllQuery := "SELECT id, cat_name, breed, years_of_experience, salary FROM cats ORDER BY id"
 	rows, err := m.connection.Query(getAllQuery)
 	if err != nil {
 		return nil, err
