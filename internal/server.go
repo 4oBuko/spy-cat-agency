@@ -3,7 +3,6 @@ package spycatagency
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -41,25 +40,29 @@ var Endpoints = struct {
 }
 
 type Server struct {
-	router     *gin.Engine
-	catService services.CatService
-	catAPI     catapi.CatAPI
+	router         *gin.Engine
+	catService     services.CatService
+	catAPI         catapi.CatAPI
+	missionService services.MissionService
 }
 
-func NewServer(catService services.CatService, catAPI catapi.CatAPI) *Server {
+func NewServer(catService services.CatService, catAPI catapi.CatAPI, missionService services.MissionService) *Server {
 	router := gin.Default()
 
 	server := &Server{
-		router:     router,
-		catService: catService,
-		catAPI:     catAPI,
+		router:         router,
+		catService:     catService,
+		catAPI:         catAPI,
+		missionService: missionService,
 	}
 	router.POST(Endpoints.CatCreate, server.handleAddCat)
 	router.GET(Endpoints.CatGet, server.handleGetCat)
-	// ! this endpoint must have pagination
+	//! todo this endpoint must have pagination
 	router.GET(Endpoints.CatGetAll, server.handleGetAllCats)
 	router.PUT(Endpoints.CatUpdate, server.handleUpdateCat)
 	router.DELETE(Endpoints.CatDelete, server.handleDeleteCat)
+
+	router.POST(Endpoints.MissionCreate, server.handleAddMission)
 
 	return server
 }
@@ -73,7 +76,7 @@ func (s *Server) handleAddCat(ctx *gin.Context) {
 		return
 	}
 
-	newCat, err := s.catService.AddNewCat(ctx, cat)
+	newCat, err := s.catService.Add(ctx, cat)
 	if err != nil {
 		if myErr, ok := err.(*catapi.UnexistedBreedError); ok {
 			ctx.JSON(http.StatusBadRequest, gin.H{
@@ -81,7 +84,6 @@ func (s *Server) handleAddCat(ctx *gin.Context) {
 			})
 			return
 		}
-		fmt.Println("error", err)
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"message": err.Error(),
 		})
@@ -99,7 +101,7 @@ func (s *Server) handleGetCat(ctx *gin.Context) {
 		return
 	}
 
-	cat, err := s.catService.GetCatById(ctx, int64(id))
+	cat, err := s.catService.GetById(ctx, int64(id))
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			ctx.JSON(http.StatusNotFound, nil)
@@ -124,7 +126,7 @@ func (s *Server) handleUpdateCat(ctx *gin.Context) {
 		})
 		return
 	}
-	updatedCat, err := s.catService.UpdateCat(ctx, int64(id), update)
+	updatedCat, err := s.catService.Update(ctx, int64(id), update)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			ctx.JSON(http.StatusBadRequest, gin.H{
@@ -165,7 +167,7 @@ func (s *Server) handleDeleteCat(ctx *gin.Context) {
 }
 
 func (s *Server) handleGetAllCats(ctx *gin.Context) {
-	cats, err := s.catService.GetAllCats(ctx)
+	cats, err := s.catService.GetAll(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"message": "error while attempting to fetch all cats:" + err.Error(),
@@ -173,6 +175,24 @@ func (s *Server) handleGetAllCats(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusOK, cats)
+}
+
+func (s *Server) handleAddMission(ctx *gin.Context) {
+	var mission models.Mission
+	if err := ctx.BindJSON(&mission); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"message": "invalid data. New mission should have a cat and at least one target",
+		})
+		return
+	}
+	savedMission, err := s.missionService.Add(ctx, mission)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"message": "attempt to add new mission failed: " + err.Error(),
+		})
+		return
+	}
+	ctx.JSON(http.StatusCreated, savedMission)
 }
 
 // todo: add tests for assigning tasks to cat

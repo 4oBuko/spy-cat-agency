@@ -9,11 +9,11 @@ import (
 )
 
 type CatService interface {
-	AddNewCat(ctx context.Context, cat models.Cat) (models.Cat, error)
-	GetCatById(ctx context.Context, id int64) (models.Cat, error)
-	UpdateCat(ctx context.Context, id int64, update models.CatUpdate) (models.Cat, error)
+	Add(ctx context.Context, cat models.Cat) (models.Cat, error)
+	GetById(ctx context.Context, id int64) (models.Cat, error)
+	Update(ctx context.Context, id int64, update models.CatUpdate) (models.Cat, error)
 	DeleteById(ctx context.Context, id int64) error
-	GetAllCats(ctx context.Context) ([]models.Cat, error)
+	GetAll(ctx context.Context) ([]models.Cat, error)
 }
 
 type DefaultCatService struct {
@@ -28,32 +28,32 @@ func NewDefaultCatService(catRepo repositories.CatRepository, catAPI catapi.CatA
 	}
 }
 
-func (d *DefaultCatService) AddNewCat(ctx context.Context, cat models.Cat) (models.Cat, error) {
+func (d *DefaultCatService) Add(ctx context.Context, cat models.Cat) (models.Cat, error) {
 	_, err := d.catAPI.GetBreedById(ctx, cat.Breed)
 	if err != nil {
 		return models.Cat{}, err
 	}
-	newCat, err := d.catRepo.Add(cat)
+	newCat, err := d.catRepo.Add(ctx, cat)
 	if err != nil {
 		return models.Cat{}, err
 	}
 	return newCat, nil
 }
 
-func (d *DefaultCatService) GetCatById(ctx context.Context, id int64) (models.Cat, error) {
-	cat, err := d.catRepo.GetById(id)
+func (d *DefaultCatService) GetById(ctx context.Context, id int64) (models.Cat, error) {
+	cat, err := d.catRepo.GetById(ctx, id)
 	if err != nil {
 		return models.Cat{}, err
 	}
 	return cat, nil
 }
 
-func (d *DefaultCatService) UpdateCat(ctx context.Context, id int64, update models.CatUpdate) (models.Cat, error) {
-	err := d.catRepo.Update(id, update)
+func (d *DefaultCatService) Update(ctx context.Context, id int64, update models.CatUpdate) (models.Cat, error) {
+	err := d.catRepo.Update(ctx, id, update)
 	if err != nil {
 		return models.Cat{}, err
 	}
-	updatedCat, err := d.catRepo.GetById(id)
+	updatedCat, err := d.catRepo.GetById(ctx, id)
 	if err != nil {
 		return models.Cat{}, err
 	}
@@ -61,15 +61,15 @@ func (d *DefaultCatService) UpdateCat(ctx context.Context, id int64, update mode
 }
 
 func (d *DefaultCatService) DeleteById(ctx context.Context, id int64) error {
-	err := d.catRepo.DeleteById(id)
+	err := d.catRepo.DeleteById(ctx, id)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (d *DefaultCatService) GetAllCats(ctx context.Context) ([]models.Cat, error) {
-	cats, err := d.catRepo.GetAll()
+func (d *DefaultCatService) GetAll(ctx context.Context) ([]models.Cat, error) {
+	cats, err := d.catRepo.GetAll(ctx)
 	if err != nil {
 		return nil, err
 	}

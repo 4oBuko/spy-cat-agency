@@ -66,10 +66,13 @@ func TestMain(m *testing.M) {
 	db.SetMaxOpenConns(10)
 	defer db.Close()
 
-	catRepo := repositories.NewMySQLCatRepo(db)
+	catRepo := repositories.NewMySQLCatRepository(db)
 	catAPI := NewFakeCatAPI()
 	catService := services.NewDefaultCatService(catRepo, catAPI)
-	server = spycatagency.NewServer(catService, catAPI)
+	missionRepo := repositories.NewMySQLMissionRepository(db)
+	targetRepo := repositories.NewMySQLTargetRepository(db)
+	missionService := services.NewDefaultMissionService(missionRepo, targetRepo)
+	server = spycatagency.NewServer(catService, catAPI, missionService)
 	code := m.Run()
 	os.Exit(code)
 }
@@ -134,10 +137,7 @@ func TestAddNewCat(t *testing.T) {
 			YearsOfExperience: 12348,
 			Salary:            393911,
 		}
-		body, err := json.Marshal(newCat)
-		if err != nil {
-			t.Fatal(err)
-		}
+		body := marshal(t, newCat)
 		request, _ := http.NewRequest(http.MethodPost, spycatagency.Endpoints.CatCreate, bytes.NewBuffer(body))
 		doRequestAndExpect(t, request, http.StatusBadRequest)
 	})
@@ -209,7 +209,70 @@ func TestDeleteCat(t *testing.T) {
 	})
 }
 
+func TestAddNewMission(t *testing.T) {
+	t.Run("add new mission successfully", func(t *testing.T) {
+		newCat := models.Cat{
+			Name:              "Ash",
+			Breed:             "abys",
+			YearsOfExperience: 6,
+			Salary:            1200,
+		}
+
+		savedCat := createNewCatSuccessfully(t, newCat)
+		newTarget := models.Target{
+			Name:    "cucumber",
+			Country: "USA",
+			Notes:   "Never let it get behind your back",
+		}
+		newMisson := models.Mission{
+			CatId: savedCat.Id,
+			Targets: []models.Target{
+				newTarget,
+				{
+					Name:    "Cristmas tree",
+					Country: "Italy",
+					Notes:   "Attacking it at night when it's not expecting you",
+				},
+			},
+		}
+		createNewMissionSuccessfully(t, savedCat, newMisson)
+	})
+
+	t.Run("new mission without tartest field in request", func(t *testing.T) {
+		newCat := models.Cat{
+			Name:              "Killer Queen",
+			Breed:             "aege",
+			YearsOfExperience: 4,
+			Salary:            1972,
+		}
+		cat := createNewCatSuccessfully(t, newCat)
+
+		newMission := models.Mission{
+			Targets: nil,
+		}
+
+		createNewMissionSuccessfully(t, cat, newMission)
+	})
+
+	t.Run("new mission with empty targets array", func(t *testing.T) {
+		newCat := models.Cat{
+			Name:              "Rina",
+			Breed:             "abob",
+			YearsOfExperience: 3,
+			Salary:            3301,
+		}
+
+		cat := createNewCatSuccessfully(t, newCat)
+		newMission := models.Mission{
+			Targets: make([]models.Target, 0, 1),
+		}
+
+		createNewMissionSuccessfully(t, cat, newMission)
+	})
+}
+
 func getCatByIDSuccessfully(t *testing.T, id int) models.Cat {
+	t.Helper()
 	request := newGetCatByIdRequest(id)
 	response := httptest.NewRecorder()
 
@@ -230,13 +293,32 @@ func newGetCatByIdRequest(id int) *http.Request {
 	request, _ := http.NewRequest(http.MethodGet, url, nil)
 	return request
 }
+func createNewMissionSuccessfully(t *testing.T, cat models.Cat, newMission models.Mission) models.Mission {
+	t.Helper()
+	newMission.CatId = cat.Id
+	body := marshal(t, newMission)
+	request, _ := http.NewRequest(http.MethodPost, spycatagency.Endpoints.MissionCreate, bytes.NewReader(body))
+	response := httptest.NewRecorder()
+	server.Handler().ServeHTTP(response, request)
+	require.Equal(t, http.StatusCreated, response.Code)
+
+	mission := unmarshal[models.Mission](t, response.Body.Bytes())
+	require.Equal(t, len(newMission.Targets), len(mission.Targets))
+	newMission.Id = mission.Id
+	for i := range mission.Targets {
+		newMission.Targets[i].Id = mission.Targets[i].Id
+		// targets doesn't have mission id in response
+		mission.Targets[i].MissionId = mission.Id
+		newMission.Targets[i].MissionId = mission.Id
+	}
+
+	assert.Equal(t, newMission, mission)
+	return mission
+}
 
 func createNewCatSuccessfully(t *testing.T, cat models.Cat) models.Cat {
 	t.Helper()
-	body, err := json.Marshal(cat)
-	if err != nil {
-		t.Fatal(err)
-	}
+	body := marshal(t, cat)
 	request, _ := http.NewRequest(http.MethodPost, spycatagency.Endpoints.CatCreate, bytes.NewReader(body))
 	response := httptest.NewRecorder()
 
@@ -244,6 +326,8 @@ func createNewCatSuccessfully(t *testing.T, cat models.Cat) models.Cat {
 	require.Equal(t, http.StatusCreated, response.Code)
 
 	persistedCat := unmarshal[models.Cat](t, response.Body.Bytes())
+	cat.Id = persistedCat.Id
+	require.Equal(t, cat, persistedCat)
 	return persistedCat
 }
 
@@ -256,6 +340,14 @@ func unmarshal[T any](t *testing.T, body []byte) T {
 	}
 	return result
 
+}
+func marshal[T any](t *testing.T, value T) []byte {
+	t.Helper()
+	result, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return result
 }
 
 func doRequestAndExpect(t *testing.T, request *http.Request, expected int) {

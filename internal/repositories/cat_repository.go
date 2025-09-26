@@ -1,30 +1,32 @@
 package repositories
 
 import (
+	"context"
 	"database/sql"
+
 	"github.com/4oBuko/spy-cat-agency/internal/models"
 )
 
 type CatRepository interface {
-	GetById(id int64) (models.Cat, error)
-	GetAll() ([]models.Cat, error)
-	DeleteById(id int64) error
-	Update(id int64, update models.CatUpdate) error
-	Add(cat models.Cat) (models.Cat, error)
+	GetById(ctx context.Context, id int64) (models.Cat, error)
+	GetAll(ctx context.Context) ([]models.Cat, error)
+	DeleteById(ctx context.Context, d int64) error
+	Update(ctx context.Context, id int64, update models.CatUpdate) error
+	Add(ctx context.Context, cat models.Cat) (models.Cat, error)
 }
 
 type MySQLCatRepository struct {
-	connection *sql.DB
+	db *sql.DB
 }
 
-func NewMySQLCatRepo(connection *sql.DB) *MySQLCatRepository {
-	return &MySQLCatRepository{connection: connection}
+func NewMySQLCatRepository(db *sql.DB) *MySQLCatRepository {
+	return &MySQLCatRepository{db: db}
 }
 
-func (m *MySQLCatRepository) GetById(id int64) (models.Cat, error) {
+func (m *MySQLCatRepository) GetById(ctx context.Context, id int64) (models.Cat, error) {
 	var c models.Cat
 	getByIdQuery := "SELECT id, cat_name, breed, years_of_experience, salary FROM cats where id = ?"
-	err := m.connection.QueryRow(getByIdQuery, id).
+	err := m.db.QueryRowContext(ctx, getByIdQuery, id).
 		Scan(&c.Id, &c.Name, &c.Breed, &c.YearsOfExperience, &c.Salary)
 	if err != nil {
 		return models.Cat{}, err
@@ -32,10 +34,10 @@ func (m *MySQLCatRepository) GetById(id int64) (models.Cat, error) {
 	return c, nil
 }
 
-func (m *MySQLCatRepository) GetAll() ([]models.Cat, error) {
+func (m *MySQLCatRepository) GetAll(ctx context.Context) ([]models.Cat, error) {
 	var cats []models.Cat
 	getAllQuery := "SELECT id, cat_name, breed, years_of_experience, salary FROM cats ORDER BY id"
-	rows, err := m.connection.Query(getAllQuery)
+	rows, err := m.db.QueryContext(ctx, getAllQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -49,9 +51,9 @@ func (m *MySQLCatRepository) GetAll() ([]models.Cat, error) {
 	return cats, nil
 }
 
-func (m *MySQLCatRepository) DeleteById(id int64) error {
+func (m *MySQLCatRepository) DeleteById(ctx context.Context, id int64) error {
 	deleteCatQuery := "DELETE FROM cats where id = ?"
-	res, err := m.connection.Exec(deleteCatQuery, id)
+	res, err := m.db.ExecContext(ctx, deleteCatQuery, id)
 	if err != nil {
 		return err
 	}
@@ -65,9 +67,9 @@ func (m *MySQLCatRepository) DeleteById(id int64) error {
 	return nil
 }
 
-func (m *MySQLCatRepository) Update(id int64, update models.CatUpdate) error {
+func (m *MySQLCatRepository) Update(ctx context.Context, id int64, update models.CatUpdate) error {
 	updateCatQuery := "UPDATE cats SET salary = ? where id = ?"
-	res, err := m.connection.Exec(updateCatQuery, update.Salary, id)
+	res, err := m.db.ExecContext(ctx, updateCatQuery, update.Salary, id)
 	if err != nil {
 		return err
 	}
@@ -81,13 +83,16 @@ func (m *MySQLCatRepository) Update(id int64, update models.CatUpdate) error {
 	return nil
 }
 
-func (m *MySQLCatRepository) Add(cat models.Cat) (models.Cat, error) {
+func (m *MySQLCatRepository) Add(ctx context.Context, cat models.Cat) (models.Cat, error) {
 	newCatQuery := `INSERT INTO cats(cat_name, years_of_experience, salary, breed) VALUES(?,?,?,?)`
-	result, err := m.connection.Exec(newCatQuery, cat.Name, cat.YearsOfExperience, cat.Salary, cat.Breed)
+	result, err := m.db.ExecContext(ctx, newCatQuery, cat.Name, cat.YearsOfExperience, cat.Salary, cat.Breed)
 	if err != nil {
 		return models.Cat{}, err
 	}
 
 	cat.Id, err = result.LastInsertId()
+	if err != nil {
+		return models.Cat{}, err
+	}
 	return cat, nil
 }

@@ -14,11 +14,14 @@ import (
 func main() {
 	dsn := "user:password@/spycatagency"
 	catAPIUrl := ""
-	connection := initDBConnection(dsn)
-	catRepo := repositories.NewMySQLCatRepo(connection)
+	db := initDBConnection(dsn)
+	catRepo := repositories.NewMySQLCatRepository(db)
 	catAPI := catapi.NewCatAPIClient(catAPIUrl, 1, time.Second)
 	catService := services.NewDefaultCatService(catRepo, catAPI)
-	server := spycatagency.NewServer(catService, catAPI)
+	missionRepo := repositories.NewMySQLMissionRepository(db)
+	targetRepo := repositories.NewMySQLTargetRepository(db)
+	missionService := services.NewDefaultMissionService(missionRepo, targetRepo)
+	server := spycatagency.NewServer(catService, catAPI, missionService)
 
 	err := server.Run()
 	if err != nil {
