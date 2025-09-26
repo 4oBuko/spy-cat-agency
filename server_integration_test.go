@@ -225,7 +225,6 @@ func TestAddNewMission(t *testing.T) {
 			Notes:   "Never let it get behind your back",
 		}
 		newMisson := models.Mission{
-			CatId: savedCat.Id,
 			Targets: []models.Target{
 				newTarget,
 				{
@@ -235,6 +234,7 @@ func TestAddNewMission(t *testing.T) {
 				},
 			},
 		}
+		newMisson.SetCatId(savedCat.Id)
 		createNewMissionSuccessfully(t, newMisson)
 	})
 
@@ -253,6 +253,43 @@ func TestAddNewMission(t *testing.T) {
 		createNewMissionSuccessfully(t, newMission)
 	})
 
+}
+
+func TestGetMissionById(t *testing.T) {
+	t.Run("create new mission and get it by id", func(t *testing.T) {
+		newMission := models.Mission{
+			Targets: []models.Target{
+				{
+					Name:    "Cat Nip",
+					Country: "Poland",
+					Notes:   "It's mighty but has low stamina",
+				},
+			},
+		}
+		mission := createNewMissionSuccessfully(t, newMission)
+		mById := getMissionByIdSuccessfully(t, int(mission.Id))
+		require.Equal(t, len(mission.Targets), len(mById.Targets))
+		for i := range mById.Targets {
+			mission.Targets[i].MissionId = mission.Id
+			mById.Targets[i].MissionId = mById.Id
+		}
+		assert.Equal(t, mission, mById)
+	})
+	t.Run("attempt to get unexisted mission", func(t *testing.T) {
+		request := newGetMissionByIdRequest(math.MaxInt64)
+		doRequestAndExpect(t, request, http.StatusNotFound)
+	})
+}
+
+func getMissionByIdSuccessfully(t *testing.T, id int) models.Mission {
+	t.Helper()
+	request := newGetMissionByIdRequest(id)
+	response := httptest.NewRecorder()
+
+	server.Handler().ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code)
+	mission := unmarshal[models.Mission](t, response.Body.Bytes())
+	return mission
 }
 
 func getCatByIDSuccessfully(t *testing.T, id int) models.Cat {
@@ -277,6 +314,11 @@ func newGetCatByIdRequest(id int) *http.Request {
 	request, _ := http.NewRequest(http.MethodGet, url, nil)
 	return request
 }
+func newGetMissionByIdRequest(id int) *http.Request {
+	url := strings.Replace(spycatagency.Endpoints.MissionGet, ":id", strconv.Itoa(id), 1)
+	request, _ := http.NewRequest(http.MethodGet, url, nil)
+	return request
+}
 func createNewMissionSuccessfully(t *testing.T, newMission models.Mission) models.Mission {
 	t.Helper()
 	body := marshal(t, newMission)
@@ -295,7 +337,7 @@ func createNewMissionSuccessfully(t *testing.T, newMission models.Mission) model
 		newMission.Targets[i].MissionId = mission.Id
 	}
 
-	assert.Equal(t, newMission, mission)
+	require.Equal(t, newMission, mission)
 	return mission
 }
 

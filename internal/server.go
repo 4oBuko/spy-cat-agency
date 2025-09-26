@@ -37,6 +37,7 @@ var Endpoints = struct {
 	CatGetAll: "/cats",
 
 	MissionCreate: "/missions",
+	MissionGet:    "/missions/:id",
 }
 
 type Server struct {
@@ -63,7 +64,7 @@ func NewServer(catService services.CatService, catAPI catapi.CatAPI, missionServ
 	router.DELETE(Endpoints.CatDelete, server.handleDeleteCat)
 
 	router.POST(Endpoints.MissionCreate, server.handleAddMission)
-
+	router.GET(Endpoints.MissionGet, server.handleGetMission)
 	return server
 }
 
@@ -107,6 +108,10 @@ func (s *Server) handleGetCat(ctx *gin.Context) {
 			ctx.JSON(http.StatusNotFound, nil)
 			return
 		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"message": "failed to get cat by id: " + err.Error(),
+		})
+		return
 	}
 	ctx.JSON(http.StatusOK, cat)
 }
@@ -193,6 +198,31 @@ func (s *Server) handleAddMission(ctx *gin.Context) {
 		return
 	}
 	ctx.JSON(http.StatusCreated, savedMission)
+}
+
+func (s *Server) handleGetMission(ctx *gin.Context) {
+	id, err := strconv.Atoi(ctx.Param("id"))
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{
+			"message": "mission not found. Use number as id!",
+		})
+		return
+	}
+
+	mission, err := s.missionService.GetById(ctx, int64(id))
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			ctx.JSON(http.StatusNotFound, nil)
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"message": "failed to get cat by id: " + err.Error(),
+		})
+		return
+
+	}
+	ctx.JSON(http.StatusOK, mission)
+
 }
 
 // todo: add tests for assigning tasks to cat

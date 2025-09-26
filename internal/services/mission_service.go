@@ -10,6 +10,7 @@ import (
 
 type MissionService interface {
 	Add(ctx context.Context, mission models.Mission) (models.Mission, error)
+	GetById(ctx context.Context, id int64) (models.Mission, error)
 }
 
 type DefaultMissionService struct {
@@ -25,13 +26,6 @@ func NewDefaultMissionService(missionRepo repositories.TxMissionRepository, targ
 }
 
 func (d *DefaultMissionService) Add(ctx context.Context, mission models.Mission) (models.Mission, error) {
-	// if len(mission.Targets) == 0 {
-	// 	savedMission, err := d.missionReposity.Add(ctx, mission)
-	// 	if err != nil {
-	// 		return models.Mission{}, nil
-	// 	}
-	// 	return savedMission, nil
-	// } else {
 	savedMission, err := d.missionReposity.WithTransaction(ctx,
 		func(tx *sql.Tx) (models.Mission, error) {
 			sm, err := d.missionReposity.AddWithTx(ctx, tx, mission)
@@ -53,5 +47,17 @@ func (d *DefaultMissionService) Add(ctx context.Context, mission models.Mission)
 		return models.Mission{}, err
 	}
 	return savedMission, nil
-	// }
+}
+
+func (d *DefaultMissionService) GetById(ctx context.Context, id int64) (models.Mission, error) {
+	mission, err := d.missionReposity.GetById(ctx, id)
+	if err != nil {
+		return models.Mission{}, err
+	}
+	targets, err := d.targetRepository.GetByMissionId(ctx, mission.Id)
+	mission.Targets = targets
+	if err != nil {
+		return models.Mission{}, err
+	}
+	return mission, nil
 }

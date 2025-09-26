@@ -9,9 +9,11 @@ import (
 
 type TargetRepository interface {
 	Add(ctx context.Context, target models.Target) (models.Target, error)
+	GetByMissionId(ctx context.Context, id int64) ([]models.Target, error)
 }
 
 type TxTargetRepository interface {
+	TargetRepository
 	AddWithTx(ctx context.Context, tx *sql.Tx, target models.Target) (models.Target, error)
 }
 
@@ -44,4 +46,22 @@ func (m *MySQLTargetRepository) add(ctx context.Context, querier Querier, target
 		return models.Target{}, err
 	}
 	return target, nil
+}
+
+func (m *MySQLTargetRepository) GetByMissionId(ctx context.Context, id int64) ([]models.Target, error) {
+	var targets []models.Target
+	getByMissionIdQuery := `SELECT id, mission_id, target_name, country, notes, completed FROM targets WHERE mission_id = ?`
+	rows, err := m.db.QueryContext(ctx, getByMissionIdQuery, id)
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		t := new(models.Target)
+		if err := rows.Scan(&t.Id, &t.MissionId, &t.Name, &t.Country, &t.Notes, &t.Completed); err != nil {
+			return nil, err
+		}
+		targets = append(targets, *t)
+	}
+	return targets, nil
 }
