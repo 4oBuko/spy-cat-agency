@@ -10,6 +10,7 @@ import (
 type MissionRepository interface {
 	Add(ctx context.Context, mission models.Mission) (models.Mission, error)
 	GetById(ctx context.Context, id int64) (models.Mission, error)
+	GetAll(ctx context.Context) ([]models.Mission, error)
 }
 
 type TxMissionRepository interface {
@@ -73,11 +74,28 @@ func (m *MySQLMissionRepository) WithTransaction(ctx context.Context, fn func(*s
 
 func (m *MySQLMissionRepository) GetById(ctx context.Context, id int64) (models.Mission, error) {
 	var mission models.Mission
-	getByIdQuery := `SELECT id, cat_id, completed FROM missions WHERE id = ?`
+	getByIdQuery := `SELECT id, cat_id, completed FROM missions WHERE id = ? ORDER BY id`
 	err := m.db.QueryRowContext(ctx, getByIdQuery, id).
 		Scan(&mission.Id, &mission.CatId, &mission.Completed)
 	if err != nil {
 		return models.Mission{}, err
 	}
 	return mission, nil
+}
+
+func (m *MySQLMissionRepository) GetAll(ctx context.Context) ([]models.Mission, error) {
+	var missions []models.Mission
+	getAllQuery := `SELECT id, cat_id, completed FROM missions ORDER BY id`
+	rows, err := m.db.QueryContext(ctx, getAllQuery)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		ms := new(models.Mission)
+		if err := rows.Scan(&ms.Id, &ms.CatId, &ms.Completed); err != nil {
+			return nil, err
+		}
+		missions = append(missions, *ms)
+	}
+	return missions, nil
 }

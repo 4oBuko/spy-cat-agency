@@ -11,6 +11,7 @@ import (
 type MissionService interface {
 	Add(ctx context.Context, mission models.Mission) (models.Mission, error)
 	GetById(ctx context.Context, id int64) (models.Mission, error)
+	GetAll(ctx context.Context) ([]models.Mission, error)
 }
 
 type DefaultMissionService struct {
@@ -60,4 +61,19 @@ func (d *DefaultMissionService) GetById(ctx context.Context, id int64) (models.M
 		return models.Mission{}, err
 	}
 	return mission, nil
+}
+
+func (d *DefaultMissionService) GetAll(ctx context.Context) ([]models.Mission, error) {
+	missions, err := d.missionReposity.GetAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for i := range missions {
+		targets, err := d.targetRepository.GetByMissionId(ctx, missions[i].Id)
+		if err != nil {
+			return nil, err
+		}
+		missions[i].Targets = targets
+	}
+	return missions, nil
 }

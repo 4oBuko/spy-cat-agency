@@ -50,7 +50,7 @@ func (m *MySQLTargetRepository) add(ctx context.Context, querier Querier, target
 
 func (m *MySQLTargetRepository) GetByMissionId(ctx context.Context, id int64) ([]models.Target, error) {
 	var targets []models.Target
-	getByMissionIdQuery := `SELECT id, mission_id, target_name, country, notes, completed FROM targets WHERE mission_id = ?`
+	getByMissionIdQuery := `SELECT id, mission_id, target_name, country, notes, completed FROM targets WHERE mission_id = ? ORDER BY id`
 	rows, err := m.db.QueryContext(ctx, getByMissionIdQuery, id)
 	if err != nil {
 		return nil, err

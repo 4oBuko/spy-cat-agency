@@ -30,6 +30,7 @@ import (
 )
 
 var server *spycatagency.Server
+var cleaner *dbCleaner
 
 func TestMain(m *testing.M) {
 	ctx := context.Background()
@@ -66,6 +67,7 @@ func TestMain(m *testing.M) {
 	db.SetMaxOpenConns(10)
 	defer db.Close()
 
+	cleaner = &dbCleaner{db: db}
 	catRepo := repositories.NewMySQLCatRepository(db)
 	catAPI := NewFakeCatAPI()
 	catService := services.NewDefaultCatService(catRepo, catAPI)
@@ -77,43 +79,27 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-// ? this test runs first when table cat is empty
-// ? to have independent state from ther tests
-func TestGetAllCats(t *testing.T) {
-	cat1 := models.Cat{
-		Name:              "Silky",
-		Breed:             "abob",
-		YearsOfExperience: 2,
-		Salary:            500,
-	}
-	cat2 := models.Cat{
-		Name:              "Milky",
-		Breed:             "asho",
-		YearsOfExperience: 4,
-		Salary:            1500,
-	}
-	cat3 := models.Cat{
-		Name:              "Morgana",
-		Breed:             "acur",
-		YearsOfExperience: 10,
-		Salary:            5555,
-	}
-	var cats []models.Cat
-	cats = append(cats, createNewCatSuccessfully(t, cat1))
-	cats = append(cats, createNewCatSuccessfully(t, cat2))
-	cats = append(cats, createNewCatSuccessfully(t, cat3))
-	request, _ := http.NewRequest(http.MethodGet, spycatagency.Endpoints.CatGetAll, nil)
-	response := httptest.NewRecorder()
+type dbCleaner struct {
+	db *sql.DB
+}
 
-	server.Handler().ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code)
-
-	allCats := unmarshal[[]models.Cat](t, response.Body.Bytes())
-	require.Equal(t, 3, len(allCats))
-	require.Equal(t, cats[0], allCats[0])
-	require.Equal(t, cats[1], allCats[1])
-	require.Equal(t, cats[2], allCats[2])
-
+func (d *dbCleaner) cleanDB() error {
+	deleteCats := "DELETE FROM cats"
+	deleteTargets := "DELETE FROM targets"
+	deleteMissions := "DELETE FROM missions"
+	_, err := d.db.Exec(deleteCats)
+	if err != nil {
+		return err
+	}
+	_, err = d.db.Exec(deleteTargets)
+	if err != nil {
+		return err
+	}
+	_, err = d.db.Exec(deleteMissions)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func TestAddNewCat(t *testing.T) {
@@ -208,7 +194,40 @@ func TestDeleteCat(t *testing.T) {
 		doRequestAndExpect(t, request, http.StatusNotFound)
 	})
 }
+func TestGetAllCats(t *testing.T) {
+	cleaner.cleanDB()
+	cat1 := models.Cat{
+		Name:              "Silky",
+		Breed:             "abob",
+		YearsOfExperience: 2,
+		Salary:            500,
+	}
+	cat2 := models.Cat{
+		Name:              "Milky",
+		Breed:             "asho",
+		YearsOfExperience: 4,
+		Salary:            1500,
+	}
+	cat3 := models.Cat{
+		Name:              "Morgana",
+		Breed:             "acur",
+		YearsOfExperience: 10,
+		Salary:            5555,
+	}
+	var cats []models.Cat
+	cats = append(cats, createNewCatSuccessfully(t, cat1))
+	cats = append(cats, createNewCatSuccessfully(t, cat2))
+	cats = append(cats, createNewCatSuccessfully(t, cat3))
+	request, _ := http.NewRequest(http.MethodGet, spycatagency.Endpoints.CatGetAll, nil)
+	response := httptest.NewRecorder()
 
+	server.Handler().ServeHTTP(response, request)
+	require.Equal(t, http.StatusOK, response.Code)
+
+	allCats := unmarshal[[]models.Cat](t, response.Body.Bytes())
+	require.Equal(t, 3, len(allCats))
+	assert.Equal(t, cats, allCats)
+}
 func TestAddNewMission(t *testing.T) {
 	t.Run("add new mission successfully", func(t *testing.T) {
 		newCat := models.Cat{
@@ -278,6 +297,47 @@ func TestGetMissionById(t *testing.T) {
 	t.Run("attempt to get unexisted mission", func(t *testing.T) {
 		request := newGetMissionByIdRequest(math.MaxInt64)
 		doRequestAndExpect(t, request, http.StatusNotFound)
+	})
+}
+
+func TestGetAllMissions(t *testing.T) {
+	t.Run("get all missions", func(t *testing.T) {
+		cleaner.cleanDB()
+
+		missions := []models.Mission{
+			{Targets: []models.Target{{
+				Name:    "Suguru Kamoshida",
+				Country: "Japan",
+				Notes:   "Abusive volleyball coach. His heart must be changed"}},
+			},
+			{Targets: []models.Target{{
+				Name:    "Junya Kaneshiro",
+				Country: "Japan",
+				Notes:   "Shibuya scammer"}},
+			},
+			{Targets: []models.Target{{
+				Name:    "Kunikazu Okumura",
+				Country: "Japan",
+				Notes:   "CEO of Okumura Foods, who runs Big Bang Burger"}},
+			},
+		}
+		missions[0] = createNewMissionSuccessfully(t, missions[0])
+		missions[1] = createNewMissionSuccessfully(t, missions[1])
+		missions[2] = createNewMissionSuccessfully(t, missions[2])
+
+		request, _ := http.NewRequest(http.MethodGet, spycatagency.Endpoints.MissionGetAll, nil)
+		response := httptest.NewRecorder()
+		server.Handler().ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code)
+
+		allMissions := unmarshal[[]models.Mission](t, response.Body.Bytes())
+		// todo make a wrapper for this
+		for i := range allMissions {
+			for j := range allMissions[i].Targets {
+				allMissions[i].Targets[j].MissionId = allMissions[i].Id
+			}
+		}
+		assert.Equal(t, missions, allMissions)
 	})
 }
 

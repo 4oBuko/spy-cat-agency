@@ -38,6 +38,7 @@ var Endpoints = struct {
 
 	MissionCreate: "/missions",
 	MissionGet:    "/missions/:id",
+	MissionGetAll: "/mission",
 }
 
 type Server struct {
@@ -65,6 +66,7 @@ func NewServer(catService services.CatService, catAPI catapi.CatAPI, missionServ
 
 	router.POST(Endpoints.MissionCreate, server.handleAddMission)
 	router.GET(Endpoints.MissionGet, server.handleGetMission)
+	router.GET(Endpoints.MissionGetAll, server.handleGetAllMissions)
 	return server
 }
 
@@ -225,8 +227,16 @@ func (s *Server) handleGetMission(ctx *gin.Context) {
 
 }
 
-// todo: add tests for assigning tasks to cat
-// todo: test how cascade delete works (if it works at all)
+func (s *Server) handleGetAllMissions(ctx *gin.Context) {
+	missions, err := s.missionService.GetAll(ctx)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"message": "attempt to get all missions failed: " + err.Error(),
+		})
+		return
+	}
+	ctx.JSON(http.StatusOK, missions)
+}
 
 func (s *Server) Run() error {
 	return s.router.Run()
