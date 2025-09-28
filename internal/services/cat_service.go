@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/4oBuko/spy-cat-agency/internal/models"
+	"github.com/4oBuko/spy-cat-agency/internal/myerrors"
 	"github.com/4oBuko/spy-cat-agency/internal/repositories"
 	"github.com/4oBuko/spy-cat-agency/pkg/catapi"
 )
@@ -61,7 +62,14 @@ func (d *DefaultCatService) Update(ctx context.Context, id int64, update models.
 }
 
 func (d *DefaultCatService) DeleteById(ctx context.Context, id int64) error {
-	err := d.catRepo.DeleteById(ctx, id)
+	busy, err := d.catRepo.IsBusy(ctx, id)
+	if err != nil {
+		return err
+	}
+	if busy {
+		return &myerrors.RequestError{"cat is currenty busy with a mission"}
+	}
+	err = d.catRepo.DeleteById(ctx, id)
 	if err != nil {
 		return err
 	}

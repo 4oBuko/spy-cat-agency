@@ -11,6 +11,9 @@ type MissionRepository interface {
 	Add(ctx context.Context, mission models.Mission) (models.Mission, error)
 	GetById(ctx context.Context, id int64) (models.Mission, error)
 	GetAll(ctx context.Context) ([]models.Mission, error)
+	Assign(ctx context.Context, missionId, catId int64) error
+	Complete(ctx context.Context, id int64) error
+	Delete(ctx context.Context, id int64) error
 }
 
 type TxMissionRepository interface {
@@ -38,15 +41,8 @@ func (m *MySQLMissionRepository) AddWithTx(ctx context.Context, tx *sql.Tx, miss
 }
 
 func (m *MySQLMissionRepository) add(ctx context.Context, querier Querier, mission models.Mission) (models.Mission, error) {
-	var result sql.Result
-	var err error
-	if mission.GetCatId() == 0 {
-		newMissionQuery := `INSERT INTO missions () VALUES ()`
-		result, err = querier.ExecContext(ctx, newMissionQuery)
-	} else {
-		newMissionWithCatQuery := `INSERT INTO missions(cat_id) VALUES (?)`
-		result, err = querier.ExecContext(ctx, newMissionWithCatQuery, mission.CatId)
-	}
+	newMissionQuery := `INSERT INTO missions () VALUES ()`
+	result, err := querier.ExecContext(ctx, newMissionQuery)
 
 	if err != nil {
 		return models.Mission{}, err
@@ -98,4 +94,53 @@ func (m *MySQLMissionRepository) GetAll(ctx context.Context) ([]models.Mission, 
 		missions = append(missions, *ms)
 	}
 	return missions, nil
+}
+
+func (m *MySQLMissionRepository) Assign(ctx context.Context, missionId, catId int64) error {
+	assignMissionQuery := `UPDATE missions SET cat_id = ? WHERE id = ?`
+	res, err := m.db.ExecContext(ctx, assignMissionQuery, catId, missionId)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (m *MySQLMissionRepository) Complete(ctx context.Context, id int64) error {
+	completeQuery := `UPDATE missions SET completed = ? where id = ?`
+	res, err := m.db.ExecContext(ctx, completeQuery, true, id)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+
+}
+
+func (m *MySQLMissionRepository) Delete(ctx context.Context, id int64) error {
+	deleteQuery := `DELETE FROM missions WHERE id = ?`
+	res, err := m.db.ExecContext(ctx, deleteQuery, id)
+	if err != nil {
+		return err
+	}
+	rows, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rows == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
 }

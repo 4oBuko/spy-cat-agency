@@ -13,6 +13,7 @@ type CatRepository interface {
 	DeleteById(ctx context.Context, d int64) error
 	Update(ctx context.Context, id int64, update models.CatUpdate) error
 	Add(ctx context.Context, cat models.Cat) (models.Cat, error)
+	IsBusy(ctx context.Context, catId int64) (bool, error)
 }
 
 type MySQLCatRepository struct {
@@ -95,4 +96,15 @@ func (m *MySQLCatRepository) Add(ctx context.Context, cat models.Cat) (models.Ca
 		return models.Cat{}, err
 	}
 	return cat, nil
+}
+
+func (m *MySQLCatRepository) IsBusy(ctx context.Context, catId int64) (bool, error) {
+	var busy bool
+	isBusyRequest := "SELECT EXISTS (SELECT id, cat_id FROM missions where cat_id = ? and completed = false)"
+	err := m.db.QueryRowContext(ctx, isBusyRequest, catId).Scan(&busy)
+	if err != nil {
+		return false, err
+	}
+
+	return busy, nil
 }

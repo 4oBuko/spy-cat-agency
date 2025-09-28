@@ -20,7 +20,7 @@ func main() {
 	catService := services.NewDefaultCatService(catRepo, catAPI)
 	missionRepo := repositories.NewMySQLMissionRepository(db)
 	targetRepo := repositories.NewMySQLTargetRepository(db)
-	missionService := services.NewDefaultMissionService(missionRepo, targetRepo)
+	missionService := services.NewDefaultMissionService(missionRepo, targetRepo, catRepo)
 	server := spycatagency.NewServer(catService, catAPI, missionService)
 
 	err := server.Run()
