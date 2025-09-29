@@ -1,0 +1,640 @@
+{
+	"info": {
+		"_postman_id": "31a83b74-c9d2-418e-be78-8cde15f0be4b",
+		"name": "spy-cat-agency",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"_exporter_id": "21045547"
+	},
+	"item": [
+		{
+			"name": "cats",
+			"item": [
+				{
+					"name": "Create cat",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var response = pm.response.json();",
+									"pm.collectionVariables.set(\"cat_id\", response.id);"
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Morgana\",\n    \"breed\": \"abys\",\n    \"yearsOfExperience\": 1,\n    \"salary\": 1000\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/cats",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"cats"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get cat by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/cats/{{cat_id}}",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"cats",
+								"{{cat_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get all cats",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/cats",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"cats"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update cat's salary",
+					"request": {
+						"method": "PUT",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"salary\" : 3000\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/cats/{{cat_id}}",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"cats",
+								"{{cat_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete cat by id",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/cats/{{cat_id}}",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"cats",
+								"{{cat_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "in this folder are examples for basic requests. create by id, get created cat, get all cats, update cat's salary and delete created cat."
+		},
+		{
+			"name": "missions",
+			"item": [
+				{
+					"name": "Mission create",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var response = pm.response.json();",
+									"pm.collectionVariables.set(\"mission_id\", response.id);",
+									"pm.collectionVariables.set(\"target_id\", response.targets[0].id);",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"targets\": [\n        {\n            \"Name\" : \"Jane Doe\",\n            \"Country\" : \"USA\"\n        }   \n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/missions",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"missions"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get mission by id",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/missions/{{mission_id}}",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"missions",
+								"{{mission_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get all missions",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/missions",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"missions"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete mission by id",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/missions/{{mission_id}}",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"missions",
+								"{{mission_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "In main folder are examples for basic requests.\n\nYou can create mission with one target, get created mission by id, get all missions and delete created mission (it's not assigned to any cat so it can be deleted)"
+		},
+		{
+			"name": "add cat with unexisted breed",
+			"item": [
+				{
+					"name": "create cat",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Morgana\",\n    \"breed\": \"abysssa-incorrect\",\n    \"yearsOfExperience\": 1,\n    \"salary\": 1000\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/cats",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"cats"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "in thi folder we try to add a cat with a breed that is not exists in the api."
+		},
+		{
+			"name": "delete mission",
+			"item": [
+				{
+					"name": "Assign mission to a cat",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/missions/{{del_m_mission_id}}/assign/{{del_m_cat_id}}",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"missions",
+								"{{del_m_mission_id}}",
+								"assign",
+								"{{del_m_cat_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Complete target",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/missions/{{del_m_mission_id}}/targets/{{del_m_target_id}}/complete",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"missions",
+								"{{del_m_mission_id}}",
+								"targets",
+								"{{del_m_target_id}}",
+								"complete"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Complete mission",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/missions/{{del_m_mission_id}}/complete",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"missions",
+								"{{del_m_mission_id}}",
+								"complete"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Delete mission",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/missions/{{del_m_mission_id}}",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"missions",
+								"{{del_m_mission_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "In this folder:\n\n1. create a cat\n    \n2. create a mission with 1 target\n    \n3. assign cat to the missoin\n    \n4. complete target of the mission\n    \n5. complete mission\n    \n6. attempt to delete mission (400 because mission is assigned to a cat)"
+		},
+		{
+			"name": "workflow test",
+			"item": [
+				{
+					"name": "Create cat",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var response = pm.response.json();",
+									"pm.collectionVariables.set(\"f_t_cat_id\", response.id);"
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\": \"Chattini\",\n    \"breed\": \"bomb\",\n    \"yearsOfExperience\": 5,\n    \"salary\": 7500\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/cats/",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"cats",
+								""
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "create mission with 1 target",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var response = pm.response.json();",
+									"pm.collectionVariables.set(\"f_t_mission_id\", response.id);",
+									"pm.collectionVariables.set(\"f_t_target1_id\", response.targets[0].id);",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"targets\": [\n        {\n            \"Name\" : \"Jane Doe\",\n            \"Country\" : \"USA\"\n        }   \n    ]\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/missions",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"missions"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Attempt to delete target",
+					"request": {
+						"method": "DELETE",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/missions/{{f_t_mission_id}}/targets/{{f_t_target1_id}}",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"missions",
+								"{{f_t_mission_id}}",
+								"targets",
+								"{{f_t_target1_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Add 2nd target",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var response = pm.response.json();",
+									"pm.collectionVariables.set(\"f_t_target2_id\", response.targets[1].id);",
+									""
+								],
+								"type": "text/javascript",
+								"packages": {},
+								"requests": {}
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"name\" : \"John Doe\",\n    \"country\" : \"France\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/missions/{{f_t_mission_id}}/targets",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"missions",
+								"{{f_t_mission_id}}",
+								"targets"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Assign cat to a mission",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "http://localhost:8080/missions/{{f_t_mission_id}}/assign/{{f_t_cat_id}}",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"missions",
+								"{{f_t_mission_id}}",
+								"assign",
+								"{{f_t_cat_id}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Update target",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"notes\" : \"follows a very strict schedule\"\n}",
+							"options": {
+								"raw": {
+									"language": "json"
+								}
+							}
+						},
+						"url": {
+							"raw": "http://localhost:8080/missions/{{f_t_mission_id}}/targets/{{f_t_target1_id}}",
+							"protocol": "http",
+							"host": [
+								"localhost"
+							],
+							"port": "8080",
+							"path": [
+								"missions",
+								"{{f_t_mission_id}}",
+								"targets",
+								"{{f_t_target1_id}}"
+							]
+						}
+					},
+					"response": []
+				}
+			],
+			"description": "Reuqest in this folder:\n\n1. Create cat\n    \n2. Create mission with 1 targets\n    \n3. Attempt to delete target from mission (400 mission must have at least one target)\n    \n4. Add 2nd target to the mission\n    \n5. Assign cat to the mission\n    \n6. Add 3rd target to the mission\n    \n7. Attempt to add 4th target to the mission (400 mission cannot have more than 3 targets)\n    \n8. Update notes of a target\n    \n9. Complete 1st target of the mission\n    \n10. Attempt to update completed target\n    \n11. Complete 2nd target of the mission\n    \n12. Complete 3rd target of the mission\n    \n13. Complete mission\n    \n14. Attempt to update target of a completed mission (400)\n    \n15. Attempt to add target to a completed mission (400)\n    \n16. delete cat (it will delete all missions and targets related to this cat)\n    \n17. attempt to get deleted cat (404)\n    \n18. attempt to get deleted mission (404)"
+		}
+	],
+	"variable": [
+		{
+			"key": "cat_id",
+			"value": ""
+		},
+		{
+			"key": "mission_id",
+			"value": ""
+		},
+		{
+			"key": "target_id",
+			"value": ""
+		},
+		{
+			"key": "del_m_cat_id",
+			"value": ""
+		},
+		{
+			"key": "del_m_mission_id",
+			"value": ""
+		},
+		{
+			"key": "del_m_target_id",
+			"value": ""
+		},
+		{
+			"key": "f_t_cat_id",
+			"value": ""
+		},
+		{
+			"key": "f_t_mission_id",
+			"value": ""
+		},
+		{
+			"key": "f_t_target1_id",
+			"value": ""
+		},
+		{
+			"key": "f_t_target2_id",
+			"value": ""
+		},
+		{
+			"key": "f_t_target3_id",
+			"value": ""
+		}
+	]
+}
