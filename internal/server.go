@@ -1,8 +1,12 @@
 package spycatagency
 
 import (
+	"bytes"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"io"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -63,6 +67,8 @@ type Server struct {
 func NewServer(catService services.CatService, catAPI catapi.CatAPI, missionService services.MissionService) *Server {
 	router := gin.Default()
 
+	router.Use(SimpleLoggingMiddleware())
+
 	server := &Server{
 		router:         router,
 		catService:     catService,
@@ -78,12 +84,12 @@ func NewServer(catService services.CatService, catAPI catapi.CatAPI, missionServ
 	router.POST(Endpoints.MissionCreate, server.handleAddMission)
 	router.GET(Endpoints.MissionGet, server.handleGetMission)
 	router.GET(Endpoints.MissionGetAll, server.handleGetAllMissions)
-	router.PUT(Endpoints.MissionAssign, server.handleAssignMission)
+	router.POST(Endpoints.MissionAssign, server.handleAssignMission)
 	router.POST(Endpoints.MissionComplete, server.handleCompleteMission)
 	router.DELETE(Endpoints.MissionDelete, server.handleDeleteMission)
 
 	router.POST(Endpoints.TargetComplete, server.handleCompleteTarget)
-	router.PUT(Endpoints.TargetUpdate, server.handleUpdateTarget)
+	router.POST(Endpoints.TargetUpdate, server.handleUpdateTarget)
 	router.DELETE(Endpoints.TargetDelete, server.handleDeleteTarget)
 	router.POST(Endpoints.TargetAdd, server.handleAddTarget)
 
@@ -524,4 +530,88 @@ func (s *Server) Run() error {
 
 func (s *Server) Handler() http.Handler {
 	return s.router
+}
+
+// responseWriter wraps gin.ResponseWriter to capture response body
+type responseWriter struct {
+	gin.ResponseWriter
+	body *bytes.Buffer
+}
+
+func (rw *responseWriter) Write(b []byte) (int, error) {
+	rw.body.Write(b)
+	return rw.ResponseWriter.Write(b)
+}
+
+func SimpleLoggingMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		// Log Request
+		logRequest(c)
+
+		// Capture response body
+		responseBody := &bytes.Buffer{}
+		writer := &responseWriter{
+			ResponseWriter: c.Writer,
+			body:           responseBody,
+		}
+		c.Writer = writer
+
+		// Process request
+		c.Next()
+
+		// Log Response
+		logResponse(c.Writer.Status(), responseBody.String())
+	}
+}
+
+func logRequest(c *gin.Context) {
+	method := c.Request.Method
+	path := c.Request.URL.Path
+
+	// Read request body if present
+	var requestBody string
+	if c.Request.Body != nil {
+		bodyBytes, err := io.ReadAll(c.Request.Body)
+		if err == nil && len(bodyBytes) > 0 {
+			requestBody = string(bodyBytes)
+			// Restore the request body for further processing
+			c.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+		}
+	}
+
+	if requestBody != "" {
+		prettyBody := prettifyJSON(requestBody)
+		log.Printf("REQUEST: %s %s\nBody:\n%s", method, path, prettyBody)
+	} else {
+		log.Printf("REQUEST: %s %s", method, path)
+	}
+}
+
+func logResponse(statusCode int, responseBody string) {
+	if responseBody != "" {
+		prettyBody := prettifyJSON(responseBody)
+		log.Printf("RESPONSE: %d\nBody:\n%s", statusCode, prettyBody)
+	} else {
+		log.Printf("RESPONSE: %d", statusCode)
+	}
+}
+
+// prettifyJSON formats JSON string with indentation if valid, otherwise returns original
+func prettifyJSON(jsonStr string) string {
+	if jsonStr == "" {
+		return ""
+	}
+
+	var jsonObj interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &jsonObj); err != nil {
+		// If it's not valid JSON, return as is
+		return jsonStr
+	}
+
+	prettyJSON, err := json.MarshalIndent(jsonObj, "", "  ")
+	if err != nil {
+		return jsonStr
+	}
+
+	return string(prettyJSON)
 }

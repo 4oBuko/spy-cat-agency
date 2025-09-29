@@ -459,7 +459,6 @@ func TestAssignMission(t *testing.T) {
 
 	})
 	t.Run("attempt to assign cat to a completed mission", func(t *testing.T) {
-		// todo: write this test when you have complete mission endpoint
 		cat := models.Cat{
 			Name:              "Tom",
 			Breed:             "abob",
@@ -1085,7 +1084,7 @@ func newGetMissionByIdRequest(id int) *http.Request {
 func newAssingMissionRequest(missionId, catId int) *http.Request {
 	url := strings.Replace(spycatagency.Endpoints.MissionAssign, ":id", strconv.Itoa(missionId), 1)
 	url = strings.Replace(url, ":catId", strconv.Itoa(catId), 1)
-	request, _ := http.NewRequest(http.MethodPut, url, nil)
+	request, _ := http.NewRequest(http.MethodPost, url, nil)
 	return request
 }
 
@@ -1108,7 +1107,7 @@ func newUpdateTargetRequest(t *testing.T, missionId, targetId int, update models
 	url := strings.Replace(spycatagency.Endpoints.TargetUpdate, ":id", strconv.Itoa(missionId), 1)
 	url = strings.Replace(url, ":targetId", strconv.Itoa(targetId), 1)
 	body := marshal(t, update)
-	request, _ := http.NewRequest(http.MethodPut, url, bytes.NewReader(body))
+	request, _ := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
 	return request
 }
 
