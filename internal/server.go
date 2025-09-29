@@ -71,23 +71,22 @@ func NewServer(catService services.CatService, catAPI catapi.CatAPI, missionServ
 	}
 	router.POST(Endpoints.CatCreate, server.handleAddCat)
 	router.GET(Endpoints.CatGet, server.handleGetCat)
-	//! todo this endpoint must have pagination
 	router.GET(Endpoints.CatGetAll, server.handleGetAllCats)
 	router.PUT(Endpoints.CatUpdate, server.handleUpdateCat)
 	router.DELETE(Endpoints.CatDelete, server.handleDeleteCat)
 
 	router.POST(Endpoints.MissionCreate, server.handleAddMission)
 	router.GET(Endpoints.MissionGet, server.handleGetMission)
-	//! todo this endpoint must have pagination
 	router.GET(Endpoints.MissionGetAll, server.handleGetAllMissions)
 	router.PUT(Endpoints.MissionAssign, server.handleAssignMission)
 	router.POST(Endpoints.MissionComplete, server.handleCompleteMission)
 	router.DELETE(Endpoints.MissionDelete, server.handleDeleteMission)
 
-	router.PUT(Endpoints.TargetComplete, server.handleCompleteTarget)
+	router.POST(Endpoints.TargetComplete, server.handleCompleteTarget)
 	router.PUT(Endpoints.TargetUpdate, server.handleUpdateTarget)
 	router.DELETE(Endpoints.TargetDelete, server.handleDeleteTarget)
 	router.POST(Endpoints.TargetAdd, server.handleAddTarget)
+
 	return server
 }
 

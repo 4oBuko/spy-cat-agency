@@ -93,7 +93,7 @@ func (d *DefaultMissionService) Assign(ctx context.Context, missionId, catId int
 	if err != nil {
 		return err
 	}
-	if mission.CatId.Valid {
+	if mission.CatId != 0 {
 		return &myerrors.RequestError{Message: "mission is already assigned"}
 	}
 	if mission.Completed {
@@ -126,7 +126,7 @@ func (d *DefaultMissionService) CompleteTarget(ctx context.Context, missionId, t
 	if mission.Completed {
 		return &myerrors.RequestError{"Mission is already completed"}
 	}
-	if !mission.CatId.Valid {
+	if mission.CatId == 0 {
 		return &myerrors.RequestError{"Mission is not assigned to anybody"}
 	}
 	target, err := d.targetRepository.GetById(ctx, targetId)
@@ -221,7 +221,7 @@ func (d *DefaultMissionService) Complete(ctx context.Context, id int64) (models.
 	if err != nil {
 		return models.Mission{}, err
 	}
-	if !mission.CatId.Valid {
+	if mission.CatId == 0 {
 		return models.Mission{}, &myerrors.RequestError{"mission must be assigned first"}
 	}
 	if mission.Completed {
@@ -245,7 +245,7 @@ func (d *DefaultMissionService) Delete(ctx context.Context, missionId int64) err
 	if err != nil {
 		return err
 	}
-	if mission.CatId.Valid {
+	if mission.CatId != 0 {
 		return &myerrors.RequestError{"mission is already assigned"}
 	}
 	err = d.missionReposity.Delete(ctx, missionId)

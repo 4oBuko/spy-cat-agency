@@ -1046,7 +1046,7 @@ func assignMissionSuccessfully(t *testing.T, mission models.Mission, cat models.
 	require.Equal(t, http.StatusOK, response.Code)
 
 	mission = getMissionByIdSuccessfully(t, int(mission.Id))
-	require.Equal(t, mission.GetCatId(), cat.Id)
+	require.Equal(t, mission.CatId, cat.Id)
 	return mission
 }
 
@@ -1099,7 +1099,7 @@ func newAddMissionRequest(t *testing.T, mission models.Mission) *http.Request {
 func newCompleteTargetRequest(missionId, targetId int) *http.Request {
 	url := strings.Replace(spycatagency.Endpoints.TargetComplete, ":id", strconv.Itoa(missionId), 1)
 	url = strings.Replace(url, ":targetId", strconv.Itoa(targetId), 1)
-	request, _ := http.NewRequest(http.MethodPut, url, nil)
+	request, _ := http.NewRequest(http.MethodPost, url, nil)
 	return request
 }
 
