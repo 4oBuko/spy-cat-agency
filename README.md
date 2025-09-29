@@ -32,5 +32,5 @@ Then execute the following command:
 ```bash
 go run ./cmd/api/main.go
 ```
-### Postmap group
+### Postman group
 To run request using postman you import [postman-collection.json](spy-cat-agency.postman_collection.json) in your postman client. Execute requests in folders one by one.
