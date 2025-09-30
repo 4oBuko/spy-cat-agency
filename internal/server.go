@@ -68,6 +68,7 @@ func NewServer(catService services.CatService, catAPI catapi.CatAPI, missionServ
 	router := gin.Default()
 
 	router.Use(SimpleLoggingMiddleware())
+	router.Use(ErrorHandler())
 
 	server := &Server{
 		router:         router,
@@ -99,23 +100,13 @@ func NewServer(catService services.CatService, catAPI catapi.CatAPI, missionServ
 func (s *Server) handleAddCat(ctx *gin.Context) {
 	var cat models.Cat
 	if err := ctx.BindJSON(&cat); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": err.Error(),
-		})
+		ctx.Error(myerrors.NewBadRequestError(err.Error()))
 		return
 	}
 
 	newCat, err := s.catService.Add(ctx, cat)
 	if err != nil {
-		if myErr, ok := err.(*catapi.UnexistedBreedError); ok {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": myErr,
-			})
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 	ctx.JSON(http.StatusCreated, newCat)
@@ -124,21 +115,13 @@ func (s *Server) handleAddCat(ctx *gin.Context) {
 func (s *Server) handleGetCat(ctx *gin.Context) {
 	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "cat not found. Use number as id!",
-		})
+		ctx.Error(myerrors.NewNotFoundError("use number as id"))
 		return
 	}
 
 	cat, err := s.catService.GetById(ctx, int64(id))
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			ctx.JSON(http.StatusNotFound, nil)
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "failed to get cat by id: " + err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 	ctx.JSON(http.StatusOK, cat)
@@ -147,29 +130,17 @@ func (s *Server) handleGetCat(ctx *gin.Context) {
 func (s *Server) handleUpdateCat(ctx *gin.Context) {
 	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "cat not found. Use number as id!",
-		})
+		ctx.Error(myerrors.NewNotFoundError("use number as id"))
 		return
 	}
 	var update models.CatUpdate
 	if err := ctx.BindJSON(&update); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": err.Error(),
-		})
+		ctx.Error(myerrors.NewBadRequestError(err.Error()))
 		return
 	}
 	updatedCat, err := s.catService.Update(ctx, int64(id), update)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": "no rows affected during the update",
-			})
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 	ctx.JSON(http.StatusOK, updatedCat)
@@ -177,29 +148,13 @@ func (s *Server) handleUpdateCat(ctx *gin.Context) {
 func (s *Server) handleDeleteCat(ctx *gin.Context) {
 	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "cat not found. Use number as id!",
-		})
+		ctx.Error(myerrors.NewNotFoundError("use number as id"))
 		return
 	}
 
 	err = s.catService.DeleteById(ctx, int64(id))
 	if err != nil {
-		if err, ok := err.(*myerrors.RequestError); ok {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		if errors.Is(err, sql.ErrNoRows) {
-			ctx.JSON(http.StatusNotFound, gin.H{
-				"message": "attempt to delete unexisted entity!",
-			})
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 	ctx.JSON(http.StatusOK, nil)
@@ -208,9 +163,7 @@ func (s *Server) handleDeleteCat(ctx *gin.Context) {
 func (s *Server) handleGetAllCats(ctx *gin.Context) {
 	cats, err := s.catService.GetAll(ctx)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "error while attempting to fetch all cats:" + err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 	ctx.JSON(http.StatusOK, cats)
@@ -287,7 +240,7 @@ func (s *Server) handleAssignMission(ctx *gin.Context) {
 	}
 	err = s.missionService.Assign(ctx, int64(missionId), int64(catId))
 	if err != nil {
-		if err, ok := err.(*myerrors.RequestError); ok {
+		if err, ok := err.(*myerrors.AppError); ok {
 			ctx.JSON(http.StatusBadRequest, gin.H{
 				"message": err.Error(),
 			})
@@ -325,7 +278,7 @@ func (s *Server) handleCompleteTarget(ctx *gin.Context) {
 
 	err = s.missionService.CompleteTarget(ctx, int64(missionId), int64(targetId))
 	if err != nil {
-		if err, ok := err.(*myerrors.RequestError); ok {
+		if err, ok := err.(*myerrors.AppError); ok {
 			ctx.JSON(http.StatusBadRequest, gin.H{
 				"message": err.Error(),
 			})
@@ -369,7 +322,7 @@ func (s *Server) handleUpdateTarget(ctx *gin.Context) {
 	}
 	target, err := s.missionService.UpdateTarget(ctx, int64(missionId), int64(targetId), update)
 	if err != nil {
-		if err, ok := err.(*myerrors.RequestError); ok {
+		if err, ok := err.(*myerrors.AppError); ok {
 			ctx.JSON(http.StatusBadRequest, gin.H{
 				"message": err.Error(),
 			})
@@ -406,7 +359,7 @@ func (s *Server) handleDeleteTarget(ctx *gin.Context) {
 	}
 	err = s.missionService.DeleteTarget(ctx, int64(missionId), int64(targetId))
 	if err != nil {
-		if err, ok := err.(*myerrors.RequestError); ok {
+		if err, ok := err.(*myerrors.AppError); ok {
 			ctx.JSON(http.StatusBadRequest, gin.H{
 				"message": err.Error(),
 			})
@@ -444,7 +397,7 @@ func (s *Server) handleAddTarget(ctx *gin.Context) {
 
 	updatedMission, err := s.missionService.AddTarget(ctx, int64(missionId), target)
 	if err != nil {
-		if err, ok := err.(*myerrors.RequestError); ok {
+		if err, ok := err.(*myerrors.AppError); ok {
 			ctx.JSON(http.StatusBadRequest, gin.H{
 				"message": err.Error(),
 			})
@@ -474,7 +427,7 @@ func (s *Server) handleCompleteMission(ctx *gin.Context) {
 	}
 	mission, err := s.missionService.Complete(ctx, int64(missionId))
 	if err != nil {
-		if err, ok := err.(*myerrors.RequestError); ok {
+		if err, ok := err.(*myerrors.AppError); ok {
 			ctx.JSON(http.StatusBadRequest, gin.H{
 				"message": err.Error(),
 			})
@@ -504,7 +457,7 @@ func (s *Server) handleDeleteMission(ctx *gin.Context) {
 	}
 	err = s.missionService.Delete(ctx, int64(missionId))
 	if err != nil {
-		if err, ok := err.(*myerrors.RequestError); ok {
+		if err, ok := err.(*myerrors.AppError); ok {
 			ctx.JSON(http.StatusBadRequest, gin.H{
 				"message": err.Error(),
 			})
@@ -541,6 +494,23 @@ type responseWriter struct {
 func (rw *responseWriter) Write(b []byte) (int, error) {
 	rw.body.Write(b)
 	return rw.ResponseWriter.Write(b)
+}
+func ErrorHandler() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		c.Next()
+		if len(c.Errors) > 0 {
+			err := c.Errors.Last().Err
+
+			switch e := err.(type) {
+			case *myerrors.AppError:
+				c.JSON(e.StatusCode, gin.H{"error": e.Message})
+			default:
+				// Log unexpected errors
+				log.Printf("Unexpected error: %v", err)
+				c.JSON(500, gin.H{"error": "Internal server error"})
+			}
+		}
+	}
 }
 
 func SimpleLoggingMiddleware() gin.HandlerFunc {

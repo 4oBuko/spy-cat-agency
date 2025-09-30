@@ -94,10 +94,10 @@ func (d *DefaultMissionService) Assign(ctx context.Context, missionId, catId int
 		return err
 	}
 	if mission.CatId != 0 {
-		return &myerrors.RequestError{Message: "mission is already assigned"}
+		return &myerrors.AppError{Message: "mission is already assigned"}
 	}
 	if mission.Completed {
-		return &myerrors.RequestError{Message: "cannot assign cat to a completed mission"}
+		return &myerrors.AppError{Message: "cannot assign cat to a completed mission"}
 	}
 	_, err = d.catRepository.GetById(ctx, catId)
 	if err != nil {
@@ -108,7 +108,7 @@ func (d *DefaultMissionService) Assign(ctx context.Context, missionId, catId int
 		return err
 	}
 	if busy {
-		return &myerrors.RequestError{Message: "cat is busy with another mission"}
+		return &myerrors.AppError{Message: "cat is busy with another mission"}
 	}
 	err = d.missionReposity.Assign(ctx, missionId, catId)
 	if err != nil {
@@ -124,17 +124,17 @@ func (d *DefaultMissionService) CompleteTarget(ctx context.Context, missionId, t
 		return err
 	}
 	if mission.Completed {
-		return &myerrors.RequestError{"Mission is already completed"}
+		return &myerrors.AppError{Message: "Mission is already completed"}
 	}
 	if mission.CatId == 0 {
-		return &myerrors.RequestError{"Mission is not assigned to anybody"}
+		return &myerrors.AppError{Message: "Mission is not assigned to anybody"}
 	}
 	target, err := d.targetRepository.GetById(ctx, targetId)
 	if err != nil {
 		return err
 	}
 	if target.Completed {
-		return &myerrors.RequestError{"Target is already completed"}
+		return &myerrors.AppError{Message: "Target is already completed"}
 	}
 	err = d.targetRepository.Complete(ctx, targetId)
 	if err != nil {
@@ -149,10 +149,10 @@ func (d *DefaultMissionService) UpdateTarget(ctx context.Context, missionId, tar
 		return models.Target{}, err
 	}
 	if target.Completed {
-		return models.Target{}, &myerrors.RequestError{"Target is already completed"}
+		return models.Target{}, &myerrors.AppError{Message: "Target is already completed"}
 	}
 	if target.MissionId != missionId {
-		return models.Target{}, &myerrors.RequestError{"Target is not related to this mission"}
+		return models.Target{}, &myerrors.AppError{Message: "Target is not related to this mission"}
 	}
 
 	err = d.targetRepository.Update(ctx, targetId, update)
@@ -173,20 +173,20 @@ func (d *DefaultMissionService) DeleteTarget(ctx context.Context, missionId, tar
 		return err
 	}
 	if target.Completed {
-		return &myerrors.RequestError{"Target is already completed"}
+		return &myerrors.AppError{Message: "Target is already completed"}
 	}
 	if target.MissionId != missionId {
-		return &myerrors.RequestError{"Target is not related to this mission"}
+		return &myerrors.AppError{Message: "Target is not related to this mission"}
 	}
 	mission, err := d.GetById(ctx, missionId)
 	if err != nil {
 		return err
 	}
 	if mission.Completed {
-		return &myerrors.RequestError{"Mission is already completed"}
+		return &myerrors.AppError{Message: "Mission is already completed"}
 	}
 	if len(mission.Targets) == 1 {
-		return &myerrors.RequestError{"Mission must have at least one target"}
+		return &myerrors.AppError{Message: "Mission must have at least one target"}
 	}
 
 	err = d.targetRepository.Delete(ctx, targetId)
@@ -202,10 +202,10 @@ func (d *DefaultMissionService) AddTarget(ctx context.Context, missionId int64, 
 		return models.Mission{}, err
 	}
 	if mission.Completed {
-		return models.Mission{}, &myerrors.RequestError{"Mission is already completed"}
+		return models.Mission{}, &myerrors.AppError{Message: "Mission is already completed"}
 	}
 	if len(mission.Targets) == 3 {
-		return models.Mission{}, &myerrors.RequestError{"Mission cannot have more than 3 targets"}
+		return models.Mission{}, &myerrors.AppError{Message: "Mission cannot have more than 3 targets"}
 	}
 	target.MissionId = missionId
 	nTarget, err := d.targetRepository.Add(ctx, target)
@@ -222,14 +222,14 @@ func (d *DefaultMissionService) Complete(ctx context.Context, id int64) (models.
 		return models.Mission{}, err
 	}
 	if mission.CatId == 0 {
-		return models.Mission{}, &myerrors.RequestError{"mission must be assigned first"}
+		return models.Mission{}, &myerrors.AppError{Message: "mission must be assigned first"}
 	}
 	if mission.Completed {
-		return models.Mission{}, &myerrors.RequestError{"mission is already completed"}
+		return models.Mission{}, &myerrors.AppError{Message: "mission is already completed"}
 	}
 	for i := range mission.Targets {
 		if !mission.Targets[i].Completed {
-			return models.Mission{}, &myerrors.RequestError{"mission has uncompleted targets"}
+			return models.Mission{}, &myerrors.AppError{Message: "mission has uncompleted targets"}
 		}
 	}
 	err = d.missionReposity.Complete(ctx, id)
@@ -246,7 +246,7 @@ func (d *DefaultMissionService) Delete(ctx context.Context, missionId int64) err
 		return err
 	}
 	if mission.CatId != 0 {
-		return &myerrors.RequestError{"mission is already assigned"}
+		return &myerrors.AppError{Message: "mission is already assigned"}
 	}
 	err = d.missionReposity.Delete(ctx, missionId)
 	if err != nil {

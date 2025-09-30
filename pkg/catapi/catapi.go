@@ -3,6 +3,7 @@ package catapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -20,13 +21,7 @@ type CatAPIClient struct {
 	breeds     []Breed
 }
 
-type UnexistedBreedError struct {
-	BreedId string
-}
-
-func (u *UnexistedBreedError) Error() string {
-	return fmt.Sprintf("breed with id %s does not exists", u.BreedId)
-}
+var ErrBreedNotFound = errors.New("breed not found")
 
 type HTTPError struct {
 	StatusCode int
@@ -64,7 +59,7 @@ func (c *CatAPIClient) GetBreedById(ctx context.Context, id string) (Breed, erro
 			return breed, nil
 		}
 	}
-	return Breed{}, &UnexistedBreedError{BreedId: id}
+	return Breed{}, ErrBreedNotFound
 }
 
 func (c *CatAPIClient) fetchAllBreeds(ctx context.Context) error {
@@ -120,7 +115,7 @@ func (c *CatAPIClient) makeGetAllBreedsRequest(ctx context.Context) ([]Breed, er
 
 	var breeds []Breed
 	if err := json.NewDecoder(response.Body).Decode(&breeds); err != nil {
-		return nil, fmt.Errorf("failed to parse response:%w", err)
+		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 	return breeds, nil
 
