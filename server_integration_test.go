@@ -505,7 +505,7 @@ func TestAssignMission(t *testing.T) {
 
 		cat = addNewCatSuccessfully(t, cat)
 		request := newAssingMissionRequest(math.MaxInt64, int(cat.Id))
-		doRequestAndExpect(t, request, http.StatusBadRequest)
+		doRequestAndExpect(t, request, http.StatusNotFound)
 	})
 }
 

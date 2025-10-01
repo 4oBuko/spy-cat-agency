@@ -3,9 +3,13 @@ package repositories
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 
 	"github.com/4oBuko/spy-cat-agency/internal/models"
 )
+
+var ErrMissionNotFound = errors.New("mission not found")
 
 type MissionRepository interface {
 	Add(ctx context.Context, mission models.Mission) (models.Mission, error)
@@ -14,6 +18,7 @@ type MissionRepository interface {
 	Assign(ctx context.Context, missionId, catId int64) error
 	Complete(ctx context.Context, id int64) error
 	Delete(ctx context.Context, id int64) error
+	Exists(ctx context.Context, id int64) error
 }
 
 type TxMissionRepository interface {
@@ -45,11 +50,11 @@ func (m *MySQLMissionRepository) add(ctx context.Context, querier Querier, missi
 	result, err := querier.ExecContext(ctx, newMissionQuery)
 
 	if err != nil {
-		return models.Mission{}, err
+		return models.Mission{}, fmt.Errorf("mission insert failed: %w", err)
 	}
 	mission.Id, err = result.LastInsertId()
 	if err != nil {
-		return models.Mission{}, err
+		return models.Mission{}, fmt.Errorf("failed to get last insert id: %w", err)
 	}
 	return mission, nil
 }
@@ -57,15 +62,20 @@ func (m *MySQLMissionRepository) add(ctx context.Context, querier Querier, missi
 func (m *MySQLMissionRepository) WithTransaction(ctx context.Context, fn func(*sql.Tx) (models.Mission, error)) (models.Mission, error) {
 	tx, err := m.db.BeginTx(ctx, nil)
 	if err != nil {
-		return models.Mission{}, err
+		return models.Mission{}, fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback()
 
 	mission, err := fn(tx)
 	if err != nil {
+		// don't format error because fn should return formated error
 		return models.Mission{}, err
 	}
-	return mission, tx.Commit()
+	err = tx.Commit()
+	if err != nil {
+		return models.Mission{}, fmt.Errorf("failed to commit transaction: %w", err)
+	}
+	return mission, nil
 }
 
 func (m *MySQLMissionRepository) GetById(ctx context.Context, id int64) (models.Mission, error) {
@@ -75,7 +85,10 @@ func (m *MySQLMissionRepository) GetById(ctx context.Context, id int64) (models.
 	err := m.db.QueryRowContext(ctx, getByIdQuery, id).
 		Scan(&mission.Id, &tpCatId, &mission.Completed)
 	if err != nil {
-		return models.Mission{}, err
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.Mission{}, ErrMissionNotFound
+		}
+		return models.Mission{}, fmt.Errorf("failed to get mission by id: %w", err)
 	}
 	if tpCatId.Valid {
 		mission.CatId = tpCatId.Int64
@@ -88,67 +101,80 @@ func (m *MySQLMissionRepository) GetAll(ctx context.Context) ([]models.Mission, 
 	getAllQuery := `SELECT id, cat_id, completed FROM missions ORDER BY id`
 	rows, err := m.db.QueryContext(ctx, getAllQuery)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get all missions: %w", err)
 	}
+	defer rows.Close()
+
 	for rows.Next() {
 		var tpCatId sql.NullInt64
 		ms := new(models.Mission)
 		if err := rows.Scan(&ms.Id, &tpCatId, &ms.Completed); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scan failed :%w", err)
 		}
 		if tpCatId.Valid {
 			ms.CatId = tpCatId.Int64
 		}
 		missions = append(missions, *ms)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration failed: %w", err)
+	}
 	return missions, nil
 }
 
 func (m *MySQLMissionRepository) Assign(ctx context.Context, missionId, catId int64) error {
+	err := m.Exists(ctx, missionId)
+	if err != nil {
+		return err
+	}
+
 	assignMissionQuery := `UPDATE missions SET cat_id = ? WHERE id = ?`
-	res, err := m.db.ExecContext(ctx, assignMissionQuery, catId, missionId)
+	_, err = m.db.ExecContext(ctx, assignMissionQuery, catId, missionId)
 	if err != nil {
-		return err
-	}
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return sql.ErrNoRows
+		return fmt.Errorf("failed to assign mission to a cat: %w", err)
 	}
 	return nil
 }
 
 func (m *MySQLMissionRepository) Complete(ctx context.Context, id int64) error {
+	err := m.Exists(ctx, id)
+	if err != nil {
+		return err
+	}
+
 	completeQuery := `UPDATE missions SET completed = ? where id = ?`
-	res, err := m.db.ExecContext(ctx, completeQuery, true, id)
+	_, err = m.db.ExecContext(ctx, completeQuery, true, id)
 	if err != nil {
-		return err
-	}
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return sql.ErrNoRows
+		return fmt.Errorf("failed to complete mission: %w", err)
 	}
 	return nil
 
 }
 
 func (m *MySQLMissionRepository) Delete(ctx context.Context, id int64) error {
+	err := m.Exists(ctx, id)
+	if err != nil {
+		return err
+	}
+
 	deleteQuery := `DELETE FROM missions WHERE id = ?`
-	res, err := m.db.ExecContext(ctx, deleteQuery, id)
+	_, err = m.db.ExecContext(ctx, deleteQuery, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to delete mission: %w", err)
 	}
-	rows, err := res.RowsAffected()
+	return nil
+}
+
+func (m *MySQLMissionRepository) Exists(ctx context.Context, id int64) error {
+	var exists bool
+	ExistsQuery := `SELECT EXISTS(SELECT 1 FROM missions WHERE id = ?)`
+	err := m.db.QueryRowContext(ctx, ExistsQuery, id).Scan(&exists)
+
 	if err != nil {
-		return err
+		return fmt.Errorf("existence check failed: %w", err)
 	}
-	if rows == 0 {
-		return sql.ErrNoRows
+	if !exists {
+		return ErrMissionNotFound
 	}
 	return nil
 }

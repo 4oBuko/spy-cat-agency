@@ -18,6 +18,7 @@ type CatRepository interface {
 	Update(ctx context.Context, id int64, update models.CatUpdate) error
 	Add(ctx context.Context, cat models.Cat) (models.Cat, error)
 	IsBusy(ctx context.Context, catId int64) (bool, error)
+	Exists(ctx context.Context, id int64) error
 }
 
 type MySQLCatRepository struct {
@@ -67,12 +68,9 @@ func (m *MySQLCatRepository) GetAll(ctx context.Context) ([]models.Cat, error) {
 }
 
 func (m *MySQLCatRepository) DeleteById(ctx context.Context, id int64) error {
-	exists, err := m.Exists(ctx, id)
+	err := m.Exists(ctx, id)
 	if err != nil {
 		return err
-	}
-	if !exists {
-		return ErrCatNotFound
 	}
 
 	deleteCatQuery := "DELETE FROM cats where id = ?"
@@ -84,12 +82,9 @@ func (m *MySQLCatRepository) DeleteById(ctx context.Context, id int64) error {
 }
 
 func (m *MySQLCatRepository) Update(ctx context.Context, id int64, update models.CatUpdate) error {
-	exists, err := m.Exists(ctx, id)
+	err := m.Exists(ctx, id)
 	if err != nil {
 		return err
-	}
-	if !exists {
-		return ErrCatNotFound
 	}
 
 	updateCatQuery := "UPDATE cats SET salary = ? where id = ?"
@@ -125,13 +120,16 @@ func (m *MySQLCatRepository) IsBusy(ctx context.Context, id int64) (bool, error)
 	return busy, nil
 }
 
-func (m *MySQLCatRepository) Exists(ctx context.Context, id int64) (bool, error) {
+func (m *MySQLCatRepository) Exists(ctx context.Context, id int64) error {
 	var exists bool
 	catExistsQuery := "SELECT EXISTS (SELECT 1 FROM cats WHERE id = ?)"
 	err := m.db.QueryRowContext(ctx, catExistsQuery, id).Scan(&exists)
 
 	if err != nil {
-		return false, fmt.Errorf("existence check failed: %w", err)
+		return fmt.Errorf("existence check failed: %w", err)
 	}
-	return exists, nil
+	if !exists {
+		return ErrCatNotFound
+	}
+	return nil
 }

@@ -2,9 +2,7 @@ package spycatagency
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
-	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -172,17 +170,12 @@ func (s *Server) handleGetAllCats(ctx *gin.Context) {
 func (s *Server) handleAddMission(ctx *gin.Context) {
 	var mission models.Mission
 	if err := ctx.BindJSON(&mission); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "invalid data. New mission should have at least one target!",
-		})
+		ctx.Error(myerrors.NewBadRequestError(err.Error()))
 		return
 	}
 	savedMission, err := s.missionService.Add(ctx, mission)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "attempt to add new mission failed: " + err.Error(),
-		})
-		return
+		ctx.Error(err)
 	}
 	ctx.JSON(http.StatusCreated, savedMission)
 }
@@ -190,23 +183,14 @@ func (s *Server) handleAddMission(ctx *gin.Context) {
 func (s *Server) handleGetMission(ctx *gin.Context) {
 	id, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "mission not found. Use number as id!",
-		})
+		ctx.Error(myerrors.NewNotFoundError("use number as id"))
 		return
 	}
 
 	mission, err := s.missionService.GetById(ctx, int64(id))
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			ctx.JSON(http.StatusNotFound, nil)
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "failed to get cat by id: " + err.Error(),
-		})
+		ctx.Error(err)
 		return
-
 	}
 	ctx.JSON(http.StatusOK, mission)
 
@@ -215,9 +199,7 @@ func (s *Server) handleGetMission(ctx *gin.Context) {
 func (s *Server) handleGetAllMissions(ctx *gin.Context) {
 	missions, err := s.missionService.GetAll(ctx)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "attempt to get all missions failed: " + err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 	ctx.JSON(http.StatusOK, missions)
@@ -226,35 +208,17 @@ func (s *Server) handleGetAllMissions(ctx *gin.Context) {
 func (s *Server) handleAssignMission(ctx *gin.Context) {
 	missionId, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "mission not found. Use number as id!",
-		})
+		ctx.Error(myerrors.NewNotFoundError("use number as id"))
 		return
 	}
 	catId, err := strconv.Atoi(ctx.Param("catId"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "cat not found. Use number as id!",
-		})
+		ctx.Error(myerrors.NewNotFoundError("use number as id"))
 		return
 	}
 	err = s.missionService.Assign(ctx, int64(missionId), int64(catId))
 	if err != nil {
-		if err, ok := err.(*myerrors.AppError); ok {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		if errors.Is(err, sql.ErrNoRows) {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "attempt to assign mission failed: " + err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 	ctx.JSON(http.StatusOK, nil)
@@ -263,36 +227,18 @@ func (s *Server) handleAssignMission(ctx *gin.Context) {
 func (s *Server) handleCompleteTarget(ctx *gin.Context) {
 	missionId, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "mission not found. Use number as id!",
-		})
+		ctx.Error(myerrors.NewNotFoundError("use number as id"))
 		return
 	}
 	targetId, err := strconv.Atoi(ctx.Param("targetId"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "target not found. Use number as id!",
-		})
+		ctx.Error(myerrors.NewNotFoundError("use number as id"))
 		return
 	}
 
 	err = s.missionService.CompleteTarget(ctx, int64(missionId), int64(targetId))
 	if err != nil {
-		if err, ok := err.(*myerrors.AppError); ok {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		if errors.Is(err, sql.ErrNoRows) {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "attempt to complete target failed: " + err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 	ctx.JSON(http.StatusOK, nil)
@@ -301,42 +247,23 @@ func (s *Server) handleCompleteTarget(ctx *gin.Context) {
 func (s *Server) handleUpdateTarget(ctx *gin.Context) {
 	missionId, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "mission not found. Use number as id!",
-		})
+		ctx.Error(myerrors.NewNotFoundError("use number as id"))
 		return
 	}
 	targetId, err := strconv.Atoi(ctx.Param("targetId"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "target not found. Use number as id!",
-		})
+		ctx.Error(myerrors.NewNotFoundError("use number as id"))
 		return
 	}
+
 	var update models.TargetUpdate
 	if err := ctx.BindJSON(&update); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": err.Error(),
-		})
+		ctx.Error(myerrors.NewBadRequestError(err.Error()))
 		return
 	}
 	target, err := s.missionService.UpdateTarget(ctx, int64(missionId), int64(targetId), update)
 	if err != nil {
-		if err, ok := err.(*myerrors.AppError); ok {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		if errors.Is(err, sql.ErrNoRows) {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "attempt to complete target failed: " + err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 	ctx.JSON(http.StatusOK, target)
@@ -345,35 +272,17 @@ func (s *Server) handleUpdateTarget(ctx *gin.Context) {
 func (s *Server) handleDeleteTarget(ctx *gin.Context) {
 	missionId, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "mission not found. Use number as id!",
-		})
+		ctx.Error(myerrors.NewNotFoundError("use number as id"))
 		return
 	}
 	targetId, err := strconv.Atoi(ctx.Param("targetId"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "target not found. Use number as id!",
-		})
+		ctx.Error(myerrors.NewNotFoundError("use number as id"))
 		return
 	}
 	err = s.missionService.DeleteTarget(ctx, int64(missionId), int64(targetId))
 	if err != nil {
-		if err, ok := err.(*myerrors.AppError); ok {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		if errors.Is(err, sql.ErrNoRows) {
-			ctx.JSON(http.StatusNotFound, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "attempt to complete target failed: " + err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 	ctx.JSON(http.StatusOK, nil)
@@ -382,36 +291,18 @@ func (s *Server) handleDeleteTarget(ctx *gin.Context) {
 func (s *Server) handleAddTarget(ctx *gin.Context) {
 	missionId, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "mission not found. Use number as id!",
-		})
+		ctx.Error(myerrors.NewNotFoundError("use number as id"))
 		return
 	}
 	var target models.Target
 	if err := ctx.BindJSON(&target); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"message": "incorrect target format: " + err.Error(),
-		})
+		ctx.Error(myerrors.NewBadRequestError(err.Error()))
 		return
 	}
 
 	updatedMission, err := s.missionService.AddTarget(ctx, int64(missionId), target)
 	if err != nil {
-		if err, ok := err.(*myerrors.AppError); ok {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		if errors.Is(err, sql.ErrNoRows) {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "attempt to complete target failed: " + err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 	ctx.JSON(http.StatusOK, updatedMission)
@@ -420,28 +311,12 @@ func (s *Server) handleAddTarget(ctx *gin.Context) {
 func (s *Server) handleCompleteMission(ctx *gin.Context) {
 	missionId, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "mission not found. Use number as id!",
-		})
+		ctx.Error(myerrors.NewNotFoundError("use number as id"))
 		return
 	}
 	mission, err := s.missionService.Complete(ctx, int64(missionId))
 	if err != nil {
-		if err, ok := err.(*myerrors.AppError); ok {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		if errors.Is(err, sql.ErrNoRows) {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "attempt to complete target failed: " + err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 	ctx.JSON(http.StatusOK, mission)
@@ -450,28 +325,12 @@ func (s *Server) handleCompleteMission(ctx *gin.Context) {
 func (s *Server) handleDeleteMission(ctx *gin.Context) {
 	missionId, err := strconv.Atoi(ctx.Param("id"))
 	if err != nil {
-		ctx.JSON(http.StatusNotFound, gin.H{
-			"message": "mission not found. Use number as id!",
-		})
+		ctx.Error(myerrors.NewBadRequestError("use number as id"))
 		return
 	}
 	err = s.missionService.Delete(ctx, int64(missionId))
 	if err != nil {
-		if err, ok := err.(*myerrors.AppError); ok {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		if errors.Is(err, sql.ErrNoRows) {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"message": err.Error(),
-			})
-			return
-		}
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"message": "attempt to complete target failed: " + err.Error(),
-		})
+		ctx.Error(err)
 		return
 	}
 	ctx.JSON(http.StatusOK, nil)
