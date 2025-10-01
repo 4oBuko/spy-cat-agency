@@ -36,6 +36,7 @@ func TestMain(m *testing.M) {
 	ctx := context.Background()
 	pwd, _ := os.Getwd()
 	initSQLPath := filepath.Join(pwd, "db", "init.sql")
+	fmt.Println("Starting mysql testcontainer...")
 	mysqlContainer, err := mysql.Run(ctx,
 		"mysql:9.4.0",
 		mysql.WithDatabase("spycatagency"),
@@ -52,7 +53,7 @@ func TestMain(m *testing.M) {
 		log.Printf("failed to start container: %s", err)
 		return
 	}
-
+	fmt.Println("Container started!")
 	connectionString, err := mysqlContainer.ConnectionString(ctx)
 	if err != nil {
 		log.Fatal("failed to get connection string:%w", err)
@@ -504,7 +505,7 @@ func TestAssignMission(t *testing.T) {
 
 		cat = addNewCatSuccessfully(t, cat)
 		request := newAssingMissionRequest(math.MaxInt64, int(cat.Id))
-		doRequestAndExpect(t, request, http.StatusBadRequest)
+		doRequestAndExpect(t, request, http.StatusNotFound)
 	})
 }
 
@@ -1207,5 +1208,5 @@ func (n *FakeCatAPI) GetBreedById(ctx context.Context, id string) (catapi.Breed,
 			return breed, nil
 		}
 	}
-	return catapi.Breed{}, &catapi.UnexistedBreedError{BreedId: id}
+	return catapi.Breed{}, catapi.ErrBreedNotFound
 }

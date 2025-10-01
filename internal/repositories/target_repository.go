@@ -3,9 +3,13 @@ package repositories
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 
 	"github.com/4oBuko/spy-cat-agency/internal/models"
 )
+
+var ErrTargetNotFound = errors.New("target not found")
 
 type TargetRepository interface {
 	Add(ctx context.Context, target models.Target) (models.Target, error)
@@ -14,6 +18,7 @@ type TargetRepository interface {
 	Complete(ctx context.Context, id int64) error
 	Update(ctx context.Context, id int64, update models.TargetUpdate) error
 	Delete(ctx context.Context, id int64) error
+	Exists(ctx context.Context, id int64) error
 }
 
 type TxTargetRepository interface {
@@ -43,11 +48,12 @@ func (m *MySQLTargetRepository) add(ctx context.Context, querier Querier, target
 	createTargetQuery := `INSERT INTO targets (mission_id, target_name, country, notes) VALUES (?, ?, ?, ?)`
 	result, err := querier.ExecContext(ctx, createTargetQuery, target.MissionId, target.Name, target.Country, target.Notes)
 	if err != nil {
-		return models.Target{}, err
+		return models.Target{}, fmt.Errorf("failed to add new target: %w", err)
 	}
+
 	target.Id, err = result.LastInsertId()
 	if err != nil {
-		return models.Target{}, err
+		return models.Target{}, fmt.Errorf("failed to get last insert id: %w", err)
 	}
 	return target, nil
 }
@@ -57,15 +63,20 @@ func (m *MySQLTargetRepository) GetByMissionId(ctx context.Context, id int64) ([
 	getByMissionIdQuery := `SELECT id, mission_id, target_name, country, notes, completed FROM targets WHERE mission_id = ? ORDER BY id`
 	rows, err := m.db.QueryContext(ctx, getByMissionIdQuery, id)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get targets by mission: %w", err)
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		t := new(models.Target)
 		if err := rows.Scan(&t.Id, &t.MissionId, &t.Name, &t.Country, &t.Notes, &t.Completed); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scan failed: %w", err)
 		}
 		targets = append(targets, *t)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration failed: %w", err)
 	}
 	return targets, nil
 }
@@ -73,60 +84,73 @@ func (m *MySQLTargetRepository) GetByMissionId(ctx context.Context, id int64) ([
 func (m *MySQLTargetRepository) GetById(ctx context.Context, id int64) (models.Target, error) {
 	var t models.Target
 	getByIdQuery := `SELECT id, mission_id, target_name, country, notes, completed FROM targets WHERE id = ?`
-	var c bool
 	err := m.db.QueryRowContext(ctx, getByIdQuery, id).
-		Scan(&t.Id, &t.MissionId, &t.Name, &t.Country, &t.Notes, &c)
+		Scan(&t.Id, &t.MissionId, &t.Name, &t.Country, &t.Notes, &t.Completed)
 	if err != nil {
-		return models.Target{}, err
+		if errors.Is(err, sql.ErrNoRows) {
+			return models.Target{}, ErrTargetNotFound
+		}
+		return models.Target{}, fmt.Errorf("failed to get target by id: %w", err)
 	}
-	t.Completed = c
 	return t, nil
 }
 
 func (m *MySQLTargetRepository) Complete(ctx context.Context, id int64) error {
+	err := m.Exists(ctx, id)
+	if err != nil {
+		return err
+	}
+
 	completeQuery := `UPDATE targets SET completed = 1 WHERE id = ?`
-	res, err := m.db.ExecContext(ctx, completeQuery, id)
+	_, err = m.db.ExecContext(ctx, completeQuery, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to complete target: %w", err)
 	}
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return sql.ErrNoRows
-	}
+
 	return nil
 }
 
 func (m *MySQLTargetRepository) Update(ctx context.Context, id int64, update models.TargetUpdate) error {
+	err := m.Exists(ctx, id)
+	if err != nil {
+		return err
+	}
+
 	updateQuery := `UPDATE targets SET notes = ? where id = ?`
-	res, err := m.db.ExecContext(ctx, updateQuery, update.Notes, id)
+	_, err = m.db.ExecContext(ctx, updateQuery, update.Notes, id)
 	if err != nil {
-		return err
-	}
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return sql.ErrNoRows
+		return fmt.Errorf("failed to update target: %w", err)
 	}
 	return nil
 }
 
 func (m *MySQLTargetRepository) Delete(ctx context.Context, id int64) error {
+	err := m.Exists(ctx, id)
+	if err != nil {
+		return err
+	}
+
 	deleteQuery := `DELETE FROM targets WHERE id = ?`
-	res, err := m.db.ExecContext(ctx, deleteQuery, id)
+	_, err = m.db.ExecContext(ctx, deleteQuery, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to delete target: %w", err)
 	}
-	rows, err := res.RowsAffected()
+
+	return nil
+}
+
+func (m *MySQLTargetRepository) Exists(ctx context.Context, id int64) error {
+	var exists bool
+	catExistsQuery := "SELECT EXISTS (SELECT 1 FROM targets WHERE id = ?)"
+	err := m.db.QueryRowContext(ctx, catExistsQuery, id).Scan(&exists)
+
 	if err != nil {
-		return err
+		return fmt.Errorf("existence check failed: %w", err)
 	}
-	if rows == 0 {
-		return sql.ErrNoRows
+
+	if !exists {
+		return ErrTargetNotFound
 	}
+
 	return nil
 }
