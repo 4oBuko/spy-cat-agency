@@ -13,12 +13,13 @@ var ErrCatNotFound = errors.New("cat not found")
 
 type CatRepository interface {
 	GetById(ctx context.Context, id int64) (models.Cat, error)
-	GetAll(ctx context.Context) ([]models.Cat, error)
+	GetAll(ctx context.Context, limit, offset int) ([]models.Cat, error)
 	DeleteById(ctx context.Context, d int64) error
 	Update(ctx context.Context, id int64, update models.CatUpdate) error
 	Add(ctx context.Context, cat models.Cat) (models.Cat, error)
 	IsBusy(ctx context.Context, catId int64) (bool, error)
 	Exists(ctx context.Context, id int64) error
+	GetCount(ctx context.Context) (int, error)
 }
 
 type MySQLCatRepository struct {
@@ -44,10 +45,10 @@ func (m *MySQLCatRepository) GetById(ctx context.Context, id int64) (models.Cat,
 	return c, nil
 }
 
-func (m *MySQLCatRepository) GetAll(ctx context.Context) ([]models.Cat, error) {
+func (m *MySQLCatRepository) GetAll(ctx context.Context, limit, offset int) ([]models.Cat, error) {
 	var cats []models.Cat
-	getAllQuery := "SELECT id, cat_name, breed, years_of_experience, salary FROM cats ORDER BY id"
-	rows, err := m.db.QueryContext(ctx, getAllQuery)
+	getAllQuery := "SELECT id, cat_name, breed, years_of_experience, salary FROM cats ORDER BY id LIMIT ? OFFSET ?"
+	rows, err := m.db.QueryContext(ctx, getAllQuery, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all cats: %w", err)
 	}
@@ -132,4 +133,14 @@ func (m *MySQLCatRepository) Exists(ctx context.Context, id int64) error {
 		return ErrCatNotFound
 	}
 	return nil
+}
+
+func (m *MySQLCatRepository) GetCount(ctx context.Context) (int, error) {
+	var count int
+	countQuery := "SELECT COUNT(*) FROM cats"
+	err := m.db.QueryRowContext(ctx, countQuery).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count cats: %w", err)
+	}
+	return count, nil
 }

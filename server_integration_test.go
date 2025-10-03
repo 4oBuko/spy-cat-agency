@@ -248,42 +248,156 @@ func TestDeleteCat(t *testing.T) {
 	})
 }
 func TestGetAllCats(t *testing.T) {
-	cleaner.cleanDB()
-	cat1 := models.Cat{
-		Name:              "Silky",
-		Breed:             "abob",
-		YearsOfExperience: 2,
-		Salary:            500,
+	err := cleaner.cleanDB()
+	if err != nil {
+		t.Fatalf("failed to clean database: %v", err)
 	}
-	cat2 := models.Cat{
-		Name:              "Milky",
-		Breed:             "asho",
-		YearsOfExperience: 4,
-		Salary:            1500,
+	cats := []models.Cat{
+		{
+			Name:              "Silky",
+			Breed:             "abob",
+			YearsOfExperience: 2,
+			Salary:            500,
+		},
+		{
+			Name:              "Milky",
+			Breed:             "asho",
+			YearsOfExperience: 4,
+			Salary:            1500,
+		},
+		{
+			Name:              "Morgana",
+			Breed:             "acur",
+			YearsOfExperience: 10,
+			Salary:            5555,
+		},
+		{
+			Name:              "Ginger",
+			Breed:             "acur",
+			YearsOfExperience: 4,
+			Salary:            3500,
+		},
+		{
+			Name:              "GiGi",
+			Breed:             "acur",
+			YearsOfExperience: 3,
+			Salary:            2500,
+		},
+		{
+			Name:              "Pagie",
+			Breed:             "abob",
+			YearsOfExperience: 2,
+			Salary:            1500,
+		},
+		{
+			Name:              "Rebecca",
+			Breed:             "asho",
+			YearsOfExperience: 4,
+			Salary:            5000,
+		},
+		{
+			Name:              "Furina",
+			Breed:             "abob",
+			YearsOfExperience: 500,
+			Salary:            100000,
+		},
+		{
+			Name:              "Keqing",
+			Breed:             "asho",
+			YearsOfExperience: 5,
+			Salary:            3500,
+		},
+		{
+			Name:              "Neko-arc",
+			Breed:             "acur",
+			YearsOfExperience: 10,
+			Salary:            8000,
+		},
 	}
-	cat3 := models.Cat{
-		Name:              "Morgana",
-		Breed:             "acur",
-		YearsOfExperience: 10,
-		Salary:            5555,
+	for i := 0; i < len(cats); i++ {
+		cats[i] = addNewCatSuccessfully(t, cats[i])
 	}
-	var cats []models.Cat
-	cats = append(cats, addNewCatSuccessfully(t, cat1))
-	cats = append(cats, addNewCatSuccessfully(t, cat2))
-	cats = append(cats, addNewCatSuccessfully(t, cat3))
-	request, _ := http.NewRequest(http.MethodGet, spycatagency.Endpoints.CatGetAll, nil)
-	response := httptest.NewRecorder()
 
-	server.Handler().ServeHTTP(response, request)
-	require.Equal(t, http.StatusOK, response.Code)
+	t.Run("get all without page size and page", func(t *testing.T) {
+		request, _ := http.NewRequest(http.MethodGet, spycatagency.Endpoints.CatGetAll, nil)
+		response := httptest.NewRecorder()
+		server.Handler().ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code)
 
-	allCats := unmarshal[[]models.Cat](t, response.Body.Bytes())
-	require.Equal(t, 3, len(allCats))
-	assert.Equal(t, cats, allCats)
+		meta := models.Pagination{
+			PageSize:   10,
+			Page:       1,
+			Total:      10,
+			TotalPages: 1,
+		}
+		paginatedCats := models.PaginatedCats{
+			Cats: cats,
+			Meta: meta,
+		}
+		pc := unmarshal[models.PaginatedCats](t, response.Body.Bytes())
+
+		require.Equal(t, 10, len(pc.Cats))
+		assert.Equal(t, paginatedCats, pc)
+	})
+	t.Run("get with page size", func(t *testing.T) {
+		path := spycatagency.Endpoints.CatGetAll + "?size=5"
+		request, _ := http.NewRequest(http.MethodGet, path, nil)
+		response := httptest.NewRecorder()
+		server.Handler().ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code)
+
+		meta := models.Pagination{
+			PageSize:   5,
+			Page:       1,
+			Total:      10,
+			TotalPages: 2,
+		}
+		response1 := unmarshal[models.PaginatedCats](t, response.Body.Bytes())
+		pc1 := models.PaginatedCats{
+			Cats: cats[0:5],
+			Meta: meta,
+		}
+		require.Equal(t, pc1, response1)
+
+		path = spycatagency.Endpoints.CatGetAll + "?size=5&page=2"
+		request, _ = http.NewRequest(http.MethodGet, path, nil)
+		response = httptest.NewRecorder()
+		server.Handler().ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code)
+		fmt.Println("raw body:", string(response.Body.Bytes()))
+		response2 := unmarshal[models.PaginatedCats](t, response.Body.Bytes())
+		meta.Page = 2
+
+		pc2 := models.PaginatedCats{
+			Cats: cats[5:],
+			Meta: meta,
+		}
+		require.Equal(t, pc2, response2)
+	})
+	t.Run("attempt to get all with page size bigger than limit", func(t *testing.T) {
+		path := spycatagency.Endpoints.CatGetAll + "?size=5&page=25"
+		request, _ := http.NewRequest(http.MethodGet, path, nil)
+		doRequestAndExpect(t, request, http.StatusBadRequest)
+	})
+	t.Run("attempt to get all with negative page size", func(t *testing.T) {
+		path := spycatagency.Endpoints.CatGetAll + "?size=-5&page=2"
+		request, _ := http.NewRequest(http.MethodGet, path, nil)
+		doRequestAndExpect(t, request, http.StatusBadRequest)
+	})
+	t.Run("attempt to get all with page over the limit", func(t *testing.T) {
+		path := spycatagency.Endpoints.CatGetAll + "?size=70&page=2"
+		request, _ := http.NewRequest(http.MethodGet, path, nil)
+		doRequestAndExpect(t, request, http.StatusBadRequest)
+	})
+	t.Run("attempt to get all with negative page", func(t *testing.T) {
+		path := spycatagency.Endpoints.CatGetAll + "?size=5&page=-1"
+		request, _ := http.NewRequest(http.MethodGet, path, nil)
+		doRequestAndExpect(t, request, http.StatusBadRequest)
+	})
 }
 func TestAddNewMission(t *testing.T) {
 	t.Run("add new mission successfully", func(t *testing.T) {
-		newMisson := models.Mission{
+		newMission := models.Mission{
 			Targets: []models.Target{
 				{
 					Name:    "cucumber",
@@ -297,7 +411,7 @@ func TestAddNewMission(t *testing.T) {
 				},
 			},
 		}
-		addNewMissionSuccessfully(t, newMisson)
+		addNewMissionSuccessfully(t, newMission)
 	})
 
 	t.Run("attempt to create mission without targets", func(t *testing.T) {
