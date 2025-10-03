@@ -10,10 +10,13 @@ import (
 	"github.com/4oBuko/spy-cat-agency/internal/repositories"
 )
 
+var MaxMissionsPerPage = 50
+var DefaultMissionsPageSize = 10
+
 type MissionService interface {
 	Add(ctx context.Context, mission models.Mission) (models.Mission, error)
 	GetById(ctx context.Context, id int64) (models.Mission, error)
-	GetAll(ctx context.Context) ([]models.Mission, error)
+	GetAll(ctx context.Context, query models.PaginationQuery) (models.PaginatedMissions, error)
 	Assign(ctx context.Context, missionId, catId int64) error
 	CompleteTarget(ctx context.Context, missionId, targetId int64) error
 	UpdateTarget(ctx context.Context, missionId, targetId int64, update models.TargetUpdate) (models.Target, error)
@@ -24,23 +27,23 @@ type MissionService interface {
 }
 
 type DefaultMissionService struct {
-	missionReposity  repositories.TxMissionRepository
-	targetRepository repositories.TxTargetRepository
-	catRepository    repositories.CatRepository
+	missionRepository repositories.TxMissionRepository
+	targetRepository  repositories.TxTargetRepository
+	catRepository     repositories.CatRepository
 }
 
 func NewDefaultMissionService(mr repositories.TxMissionRepository, tr repositories.TxTargetRepository, cr repositories.CatRepository) *DefaultMissionService {
 	return &DefaultMissionService{
-		missionReposity:  mr,
-		targetRepository: tr,
-		catRepository:    cr,
+		missionRepository: mr,
+		targetRepository:  tr,
+		catRepository:     cr,
 	}
 }
 
 func (d *DefaultMissionService) Add(ctx context.Context, mission models.Mission) (models.Mission, error) {
-	savedMission, err := d.missionReposity.WithTransaction(ctx,
+	savedMission, err := d.missionRepository.WithTransaction(ctx,
 		func(tx *sql.Tx) (models.Mission, error) {
-			sm, err := d.missionReposity.AddWithTx(ctx, tx, mission)
+			sm, err := d.missionRepository.AddWithTx(ctx, tx, mission)
 			if err != nil {
 				return models.Mission{}, err
 			}
@@ -64,7 +67,7 @@ func (d *DefaultMissionService) Add(ctx context.Context, mission models.Mission)
 }
 
 func (d *DefaultMissionService) GetById(ctx context.Context, id int64) (models.Mission, error) {
-	mission, err := d.missionReposity.GetById(ctx, id)
+	mission, err := d.missionRepository.GetById(ctx, id)
 	if err != nil {
 		if errors.Is(err, repositories.ErrMissionNotFound) {
 			return models.Mission{}, myerrors.NewNotFoundError(err.Error())
@@ -80,23 +83,57 @@ func (d *DefaultMissionService) GetById(ctx context.Context, id int64) (models.M
 	return mission, nil
 }
 
-func (d *DefaultMissionService) GetAll(ctx context.Context) ([]models.Mission, error) {
-	missions, err := d.missionReposity.GetAll(ctx)
+func (d *DefaultMissionService) GetAll(ctx context.Context, query models.PaginationQuery) (models.PaginatedMissions, error) {
+	count, err := d.missionRepository.GetCount(ctx)
 	if err != nil {
-		return nil, myerrors.NewServerError(err.Error())
+		return models.PaginatedMissions{}, myerrors.NewServerError(err.Error())
+	}
+	if query.Size > MaxMissionsPerPage {
+		return models.PaginatedMissions{}, myerrors.NewBadRequestError("page size must be between 0 and 50")
+	}
+
+	var offset, limit int
+	if query.Page == 0 {
+		query.Page = 1
+	}
+	if query.Size == 0 {
+		query.Size = DefaultMissionsPageSize
+	}
+
+	offset = (query.Page - 1) * query.Size
+	limit = query.Size
+	totalPages := (count + query.Size - 1) / query.Size
+
+	if query.Page > totalPages {
+		return models.PaginatedMissions{}, myerrors.NewBadRequestError("request page is greater than total pages")
+	}
+
+	missions, err := d.missionRepository.GetAll(ctx, limit, offset)
+	if err != nil {
+		return models.PaginatedMissions{}, myerrors.NewServerError(err.Error())
 	}
 	for i := range missions {
 		targets, err := d.targetRepository.GetByMissionId(ctx, missions[i].Id)
 		if err != nil {
-			return nil, myerrors.NewServerError(err.Error())
+			return models.PaginatedMissions{}, myerrors.NewServerError(err.Error())
 		}
 		missions[i].Targets = targets
 	}
-	return missions, nil
+	pMissions := models.PaginatedMissions{
+		Missions: missions,
+		Meta: models.Pagination{
+			PageSize:   query.Size,
+			Page:       query.Page,
+			TotalPages: totalPages,
+			Total:      count,
+		},
+	}
+
+	return pMissions, nil
 }
 
 func (d *DefaultMissionService) Assign(ctx context.Context, missionId, catId int64) error {
-	mission, err := d.missionReposity.GetById(ctx, missionId)
+	mission, err := d.missionRepository.GetById(ctx, missionId)
 	if err != nil {
 		if errors.Is(err, repositories.ErrMissionNotFound) {
 			return myerrors.NewNotFoundError(err.Error())
@@ -123,7 +160,7 @@ func (d *DefaultMissionService) Assign(ctx context.Context, missionId, catId int
 	if busy {
 		return myerrors.NewBadRequestError("cat is busy with another mission")
 	}
-	err = d.missionReposity.Assign(ctx, missionId, catId)
+	err = d.missionRepository.Assign(ctx, missionId, catId)
 	if err != nil {
 		return myerrors.NewServerError(err.Error())
 	}
@@ -132,7 +169,7 @@ func (d *DefaultMissionService) Assign(ctx context.Context, missionId, catId int
 }
 
 func (d *DefaultMissionService) CompleteTarget(ctx context.Context, missionId, targetId int64) error {
-	mission, err := d.missionReposity.GetById(ctx, missionId)
+	mission, err := d.missionRepository.GetById(ctx, missionId)
 	if err != nil {
 		if errors.Is(err, repositories.ErrMissionNotFound) {
 			return myerrors.NewNotFoundError(err.Error())
@@ -268,7 +305,7 @@ func (d *DefaultMissionService) Complete(ctx context.Context, id int64) (models.
 			return models.Mission{}, myerrors.NewBadRequestError("mission has uncompleted targets")
 		}
 	}
-	err = d.missionReposity.Complete(ctx, id)
+	err = d.missionRepository.Complete(ctx, id)
 	if err != nil {
 		return models.Mission{}, myerrors.NewServerError(err.Error())
 	}
@@ -287,7 +324,7 @@ func (d *DefaultMissionService) Delete(ctx context.Context, missionId int64) err
 	if mission.CatId != 0 {
 		return myerrors.NewBadRequestError("mission is already assigned")
 	}
-	err = d.missionReposity.Delete(ctx, missionId)
+	err = d.missionRepository.Delete(ctx, missionId)
 	if err != nil {
 		if errors.Is(err, repositories.ErrMissionNotFound) {
 			return myerrors.NewNotFoundError(err.Error())

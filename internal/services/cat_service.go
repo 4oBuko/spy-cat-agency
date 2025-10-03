@@ -10,8 +10,8 @@ import (
 	"github.com/4oBuko/spy-cat-agency/pkg/catapi"
 )
 
-var MaxCatsPerPage int = 50
-var DefaultPageSize int = 10
+var MaxCatsPerPage = 50
+var DefaultCatsPageSize = 10
 
 type CatService interface {
 	Add(ctx context.Context, cat models.Cat) (models.Cat, error)
@@ -103,14 +103,14 @@ func (d *DefaultCatService) GetAll(ctx context.Context, query models.PaginationQ
 		query.Page = 1
 	}
 	if query.Size == 0 {
-		query.Size = DefaultPageSize
+		query.Size = DefaultCatsPageSize
 	}
 
 	offset = (query.Page - 1) * query.Size
 	limit = query.Size
 	totalPages := (count + query.Size - 1) / query.Size
 	if query.Page > totalPages {
-		return models.PaginatedCats{}, myerrors.NewBadRequestError("reuqest page is greater than total pages")
+		return models.PaginatedCats{}, myerrors.NewBadRequestError("request page is greater than total pages")
 	}
 	cats, err := d.catRepo.GetAll(ctx, limit, offset)
 	if err != nil {

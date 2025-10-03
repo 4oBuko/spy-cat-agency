@@ -3,7 +3,6 @@ package spycatagency
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
 	"log"
 	"net/http"
@@ -165,7 +164,6 @@ func (s *Server) handleGetAllCats(ctx *gin.Context) {
 		ctx.Error(myerrors.NewBadRequestError(err.Error()))
 		return
 	}
-	fmt.Println("parsed query: ", query)
 	cats, err := s.catService.GetAll(ctx, query)
 	if err != nil {
 		ctx.Error(err)
@@ -204,7 +202,12 @@ func (s *Server) handleGetMission(ctx *gin.Context) {
 }
 
 func (s *Server) handleGetAllMissions(ctx *gin.Context) {
-	missions, err := s.missionService.GetAll(ctx)
+	var query models.PaginationQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		ctx.Error(myerrors.NewBadRequestError(err.Error()))
+		return
+	}
+	missions, err := s.missionService.GetAll(ctx, query)
 	if err != nil {
 		ctx.Error(err)
 		return

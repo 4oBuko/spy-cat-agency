@@ -14,11 +14,12 @@ var ErrMissionNotFound = errors.New("mission not found")
 type MissionRepository interface {
 	Add(ctx context.Context, mission models.Mission) (models.Mission, error)
 	GetById(ctx context.Context, id int64) (models.Mission, error)
-	GetAll(ctx context.Context) ([]models.Mission, error)
+	GetAll(ctx context.Context, limit, offset int) ([]models.Mission, error)
 	Assign(ctx context.Context, missionId, catId int64) error
 	Complete(ctx context.Context, id int64) error
 	Delete(ctx context.Context, id int64) error
 	Exists(ctx context.Context, id int64) error
+	GetCount(ctx context.Context) (int, error)
 }
 
 type TxMissionRepository interface {
@@ -96,10 +97,10 @@ func (m *MySQLMissionRepository) GetById(ctx context.Context, id int64) (models.
 	return mission, nil
 }
 
-func (m *MySQLMissionRepository) GetAll(ctx context.Context) ([]models.Mission, error) {
+func (m *MySQLMissionRepository) GetAll(ctx context.Context, limit, offset int) ([]models.Mission, error) {
 	var missions []models.Mission
-	getAllQuery := `SELECT id, cat_id, completed FROM missions ORDER BY id`
-	rows, err := m.db.QueryContext(ctx, getAllQuery)
+	getAllQuery := `SELECT id, cat_id, completed FROM missions ORDER BY id LIMIT ? OFFSET ?`
+	rows, err := m.db.QueryContext(ctx, getAllQuery, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get all missions: %w", err)
 	}
@@ -177,4 +178,14 @@ func (m *MySQLMissionRepository) Exists(ctx context.Context, id int64) error {
 		return ErrMissionNotFound
 	}
 	return nil
+}
+
+func (m *MySQLMissionRepository) GetCount(ctx context.Context) (int, error) {
+	var count int
+	countQuery := "SELECT COUNT(*) FROM missions"
+	err := m.db.QueryRowContext(ctx, countQuery).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count cats: %w", err)
+	}
+	return count, nil
 }

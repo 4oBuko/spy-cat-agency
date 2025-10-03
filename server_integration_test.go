@@ -23,6 +23,8 @@ import (
 	"github.com/4oBuko/spy-cat-agency/internal/services"
 	"github.com/4oBuko/spy-cat-agency/pkg/catapi"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -330,14 +332,14 @@ func TestGetAllCats(t *testing.T) {
 			Total:      10,
 			TotalPages: 1,
 		}
-		paginatedCats := models.PaginatedCats{
+		expected := models.PaginatedCats{
 			Cats: cats,
 			Meta: meta,
 		}
 		pc := unmarshal[models.PaginatedCats](t, response.Body.Bytes())
 
-		require.Equal(t, 10, len(pc.Cats))
-		assert.Equal(t, paginatedCats, pc)
+		require.Equal(t, len(expected.Cats), len(pc.Cats))
+		assert.Equal(t, expected, pc)
 	})
 	t.Run("get with page size", func(t *testing.T) {
 		path := spycatagency.Endpoints.CatGetAll + "?size=5"
@@ -364,7 +366,6 @@ func TestGetAllCats(t *testing.T) {
 		response = httptest.NewRecorder()
 		server.Handler().ServeHTTP(response, request)
 		require.Equal(t, http.StatusOK, response.Code)
-		fmt.Println("raw body:", string(response.Body.Bytes()))
 		response2 := unmarshal[models.PaginatedCats](t, response.Body.Bytes())
 		meta.Page = 2
 
@@ -374,25 +375,8 @@ func TestGetAllCats(t *testing.T) {
 		}
 		require.Equal(t, pc2, response2)
 	})
-	t.Run("attempt to get all with page size bigger than limit", func(t *testing.T) {
-		path := spycatagency.Endpoints.CatGetAll + "?size=5&page=25"
-		request, _ := http.NewRequest(http.MethodGet, path, nil)
-		doRequestAndExpect(t, request, http.StatusBadRequest)
-	})
-	t.Run("attempt to get all with negative page size", func(t *testing.T) {
-		path := spycatagency.Endpoints.CatGetAll + "?size=-5&page=2"
-		request, _ := http.NewRequest(http.MethodGet, path, nil)
-		doRequestAndExpect(t, request, http.StatusBadRequest)
-	})
-	t.Run("attempt to get all with page over the limit", func(t *testing.T) {
-		path := spycatagency.Endpoints.CatGetAll + "?size=70&page=2"
-		request, _ := http.NewRequest(http.MethodGet, path, nil)
-		doRequestAndExpect(t, request, http.StatusBadRequest)
-	})
-	t.Run("attempt to get all with negative page", func(t *testing.T) {
-		path := spycatagency.Endpoints.CatGetAll + "?size=5&page=-1"
-		request, _ := http.NewRequest(http.MethodGet, path, nil)
-		doRequestAndExpect(t, request, http.StatusBadRequest)
+	t.Run("test validation", func(t *testing.T) {
+		testPaginationValidation(t, spycatagency.Endpoints.CatGetAll)
 	})
 }
 func TestAddNewMission(t *testing.T) {
@@ -405,7 +389,7 @@ func TestAddNewMission(t *testing.T) {
 					Notes:   "Never let it get behind your back",
 				},
 				{
-					Name:    "Cristmas tree",
+					Name:    "Christmas tree",
 					Country: "Italy",
 					Notes:   "Attacking it at night when it's not expecting you",
 				},
@@ -468,10 +452,7 @@ func TestGetMissionById(t *testing.T) {
 		mById := getMissionByIdSuccessfully(t, int(mission.Id))
 		require.Equal(t, len(mission.Targets), len(mById.Targets))
 
-		setMissionIdForTargets(mission)
-		setMissionIdForTargets(mById)
-
-		assert.Equal(t, mission, mById)
+		assertMissions(t, mission, mById)
 	})
 	t.Run("attempt to get unexisted mission", func(t *testing.T) {
 		request := newGetMissionByIdRequest(math.MaxInt64)
@@ -480,40 +461,122 @@ func TestGetMissionById(t *testing.T) {
 }
 
 func TestGetAllMissions(t *testing.T) {
-	t.Run("get all missions", func(t *testing.T) {
-		cleaner.cleanDB()
+	cleaner.cleanDB()
 
-		missions := []models.Mission{
-			{Targets: []models.Target{{
-				Name:    "Suguru Kamoshida",
-				Country: "Japan",
-				Notes:   "Abusive volleyball coach. His heart must be changed"}},
-			},
-			{Targets: []models.Target{{
-				Name:    "Junya Kaneshiro",
-				Country: "Japan",
-				Notes:   "Shibuya scammer"}},
-			},
-			{Targets: []models.Target{{
-				Name:    "Kunikazu Okumura",
-				Country: "Japan",
-				Notes:   "CEO of Okumura Foods, who runs Big Bang Burger"}},
-			},
-		}
-		missions[0] = addNewMissionSuccessfully(t, missions[0])
-		missions[1] = addNewMissionSuccessfully(t, missions[1])
-		missions[2] = addNewMissionSuccessfully(t, missions[2])
+	missions := []models.Mission{
+		{Targets: []models.Target{{
+			Name:    "Suguru Kamoshida",
+			Country: "Japan",
+			Notes:   "Abusive volleyball coach. His heart must be changed"}},
+		},
+		{Targets: []models.Target{{
+			Name:    "Junya Kaneshiro",
+			Country: "Japan",
+			Notes:   "Shibuya scammer"}},
+		},
+		{Targets: []models.Target{{
+			Name:    "Kunikazu Okumura",
+			Country: "Japan",
+			Notes:   "CEO of Okumura Foods, who runs Big Bang Burger"}},
+		},
+		{Targets: []models.Target{{
+			Name:    "Jack the Ripper",
+			Country: "USA"}},
+		},
+		{Targets: []models.Target{{
+			Name:    "Big Boss",
+			Country: "USA",
+			Notes:   "Likes to eat snakes"}},
+		},
+		{Targets: []models.Target{{
+			Name:    "Jane Doe",
+			Country: "UK"}},
+		},
+		{Targets: []models.Target{{
+			Name:    "John Doe",
+			Country: "Germany"}},
+		},
+		{Targets: []models.Target{{
+			Name:    "Emilie Bloom",
+			Country: "Australia"}},
+		},
+		{Targets: []models.Target{{
+			Name:    "Layla Smith",
+			Country: "France",
+			Notes:   "Always sleepy"}},
+		},
+		{Targets: []models.Target{{
+			Name:    "Arlecchino",
+			Country: "France",
+			Notes:   "Head of the house of the hearth"}},
+		},
+	}
+	for i := range missions {
+		missions[i] = addNewMissionSuccessfully(t, missions[i])
+	}
 
+	t.Run("get all without page size and page", func(t *testing.T) {
 		request, _ := http.NewRequest(http.MethodGet, spycatagency.Endpoints.MissionGetAll, nil)
 		response := httptest.NewRecorder()
 		server.Handler().ServeHTTP(response, request)
 		require.Equal(t, http.StatusOK, response.Code)
 
-		allMissions := unmarshal[[]models.Mission](t, response.Body.Bytes())
-		for i := range allMissions {
-			setMissionIdForTargets(allMissions[i])
+		meta := models.Pagination{
+			PageSize:   10,
+			Page:       1,
+			TotalPages: 1,
+			Total:      10,
 		}
-		assert.Equal(t, missions, allMissions)
+		expected := models.PaginatedMissions{
+			Missions: missions,
+			Meta:     meta,
+		}
+		pm := unmarshal[models.PaginatedMissions](t, response.Body.Bytes())
+
+		require.Equal(t, len(expected.Missions), len(pm.Missions))
+		assertPaginatedMissions(t, expected, pm)
+	})
+	t.Run("get all with page size", func(t *testing.T) {
+		url := spycatagency.Endpoints.MissionGetAll + "?size=5"
+		request, _ := http.NewRequest(http.MethodGet, url, nil)
+		response := httptest.NewRecorder()
+		server.Handler().ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code)
+
+		meta := models.Pagination{
+			PageSize:   5,
+			Page:       1,
+			TotalPages: 2,
+			Total:      10,
+		}
+		expected := models.PaginatedMissions{
+			Missions: missions[0:5],
+			Meta:     meta,
+		}
+		pm := unmarshal[models.PaginatedMissions](t, response.Body.Bytes())
+
+		require.Equal(t, len(expected.Missions), len(pm.Missions))
+		assertPaginatedMissions(t, expected, pm)
+
+		url = spycatagency.Endpoints.MissionGetAll + "?size=5&page=2"
+		request, _ = http.NewRequest(http.MethodGet, url, nil)
+		response = httptest.NewRecorder()
+		server.Handler().ServeHTTP(response, request)
+		require.Equal(t, http.StatusOK, response.Code)
+
+		meta.Page = 2
+		expected = models.PaginatedMissions{
+			Missions: missions[5:],
+			Meta:     meta,
+		}
+		pm = unmarshal[models.PaginatedMissions](t, response.Body.Bytes())
+
+		require.Equal(t, len(expected.Missions), len(pm.Missions))
+		assertPaginatedMissions(t, expected, pm)
+	})
+
+	t.Run("test validation", func(t *testing.T) {
+		testPaginationValidation(t, spycatagency.Endpoints.MissionGetAll)
 	})
 }
 
@@ -569,7 +632,7 @@ func TestAssignMission(t *testing.T) {
 			},
 		}
 		newMission = addNewMissionSuccessfully(t, newMission)
-		request := newAssingMissionRequest(int(newMission.Id), int(cat.Id))
+		request := newAssignMissionRequest(int(newMission.Id), int(cat.Id))
 		doRequestAndExpect(t, request, http.StatusBadRequest)
 
 	})
@@ -606,7 +669,7 @@ func TestAssignMission(t *testing.T) {
 			Salary:            1000,
 		}
 		newCat = addNewCatSuccessfully(t, newCat)
-		request := newAssingMissionRequest(int(mission.Id), int(newCat.Id))
+		request := newAssignMissionRequest(int(mission.Id), int(newCat.Id))
 		doRequestAndExpect(t, request, http.StatusBadRequest)
 	})
 	t.Run("attempt to assign non existing mission", func(t *testing.T) {
@@ -618,7 +681,7 @@ func TestAssignMission(t *testing.T) {
 		}
 
 		cat = addNewCatSuccessfully(t, cat)
-		request := newAssingMissionRequest(math.MaxInt64, int(cat.Id))
+		request := newAssignMissionRequest(math.MaxInt64, int(cat.Id))
 		doRequestAndExpect(t, request, http.StatusNotFound)
 	})
 }
@@ -902,9 +965,8 @@ func TestUpdateMissionTargets(t *testing.T) {
 
 		mission.Targets = mission.Targets[:1]
 		updatedMission := getMissionByIdSuccessfully(t, int(mission.Id))
-		setMissionIdForTargets(updatedMission)
 
-		assert.Equal(t, mission, updatedMission)
+		assertMissions(t, mission, updatedMission)
 
 	})
 
@@ -978,9 +1040,7 @@ func TestUpdateMissionTargets(t *testing.T) {
 		require.Equal(t, len(mission.Targets), len(uMission.Targets))
 
 		mission.Targets[1].Id = uMission.Targets[1].Id
-		setMissionIdForTargets(mission)
-		setMissionIdForTargets(uMission)
-		assert.Equal(t, mission, uMission)
+		assertMissions(t, mission, uMission)
 	})
 
 	t.Run("attempt to add 4th target to a mission", func(t *testing.T) {
@@ -1119,16 +1179,15 @@ func addNewMissionSuccessfully(t *testing.T, newMission models.Mission) models.M
 	for i := range mission.Targets {
 		newMission.Targets[i].Id = mission.Targets[i].Id
 	}
-	setMissionIdForTargets(mission)
-	setMissionIdForTargets(newMission)
+	assertMissions(t, mission, newMission)
 
 	require.Equal(t, newMission, mission)
 	return mission
 }
 
-func completeTargetSuccessfully(t *testing.T, missionId, targetid int64) models.Mission {
+func completeTargetSuccessfully(t *testing.T, missionId, targetId int64) models.Mission {
 	t.Helper()
-	request := newCompleteTargetRequest(int(missionId), int(targetid))
+	request := newCompleteTargetRequest(int(missionId), int(targetId))
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	require.Equal(t, http.StatusOK, response.Code)
@@ -1154,7 +1213,7 @@ func addNewCatSuccessfully(t *testing.T, cat models.Cat) models.Cat {
 
 func assignMissionSuccessfully(t *testing.T, mission models.Mission, cat models.Cat) models.Mission {
 	t.Helper()
-	request := newAssingMissionRequest(int(mission.Id), int(cat.Id))
+	request := newAssignMissionRequest(int(mission.Id), int(cat.Id))
 	response := httptest.NewRecorder()
 	server.Handler().ServeHTTP(response, request)
 	require.Equal(t, http.StatusOK, response.Code)
@@ -1196,7 +1255,7 @@ func newGetMissionByIdRequest(id int) *http.Request {
 	return request
 }
 
-func newAssingMissionRequest(missionId, catId int) *http.Request {
+func newAssignMissionRequest(missionId, catId int) *http.Request {
 	url := strings.Replace(spycatagency.Endpoints.MissionAssign, ":id", strconv.Itoa(missionId), 1)
 	url = strings.Replace(url, ":catId", strconv.Itoa(catId), 1)
 	request, _ := http.NewRequest(http.MethodPost, url, nil)
@@ -1279,9 +1338,36 @@ func doRequestAndExpect(t *testing.T, request *http.Request, expected int) {
 	assert.Equal(t, expected, response.Code)
 }
 
-func setMissionIdForTargets(mission models.Mission) {
-	for i := range mission.Targets {
-		mission.Targets[i].MissionId = mission.Id
+func assertMissions(t *testing.T, expected, actual models.Mission) {
+	t.Helper()
+	if diff := cmp.Diff(expected, actual, cmpopts.IgnoreFields(models.Target{}, "MissionId")); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
+	}
+}
+func assertPaginatedMissions(t *testing.T, expected, actual models.PaginatedMissions) {
+	t.Helper()
+	if diff := cmp.Diff(expected, actual, cmpopts.IgnoreFields(models.Target{}, "MissionId")); diff != "" {
+		t.Errorf("mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func testPaginationValidation(t *testing.T, url string) {
+	t.Helper()
+	cases := []struct {
+		url  string
+		name string
+	}{
+		{url: url + "?size=5&page=25", name: "attempt to get all with page over the limit"},
+		{url: url + "?size=-5&page=2", name: "attempt to get all with negative page size"},
+		{url: url + "?size=70&page=2", name: "attempt to get all with page size bigger than limit"},
+		{url: url + "?size=5&page=-1", name: "attempt to get all with negative page"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			request, _ := http.NewRequest(http.MethodGet, c.url, nil)
+			doRequestAndExpect(t, request, http.StatusBadRequest)
+		})
+
 	}
 }
 
