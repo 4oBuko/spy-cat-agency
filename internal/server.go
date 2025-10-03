@@ -97,7 +97,7 @@ func NewServer(catService services.CatService, catAPI catapi.CatAPI, missionServ
 
 func (s *Server) handleAddCat(ctx *gin.Context) {
 	var cat models.Cat
-	if err := ctx.BindJSON(&cat); err != nil {
+	if err := ctx.ShouldBindJSON(&cat); err != nil {
 		ctx.Error(myerrors.NewBadRequestError(err.Error()))
 		return
 	}
@@ -132,7 +132,7 @@ func (s *Server) handleUpdateCat(ctx *gin.Context) {
 		return
 	}
 	var update models.CatUpdate
-	if err := ctx.BindJSON(&update); err != nil {
+	if err := ctx.ShouldBindJSON(&update); err != nil {
 		ctx.Error(myerrors.NewBadRequestError(err.Error()))
 		return
 	}
@@ -159,7 +159,12 @@ func (s *Server) handleDeleteCat(ctx *gin.Context) {
 }
 
 func (s *Server) handleGetAllCats(ctx *gin.Context) {
-	cats, err := s.catService.GetAll(ctx)
+	var query models.PaginationQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		ctx.Error(myerrors.NewBadRequestError(err.Error()))
+		return
+	}
+	cats, err := s.catService.GetAll(ctx, query)
 	if err != nil {
 		ctx.Error(err)
 		return
@@ -169,7 +174,7 @@ func (s *Server) handleGetAllCats(ctx *gin.Context) {
 
 func (s *Server) handleAddMission(ctx *gin.Context) {
 	var mission models.Mission
-	if err := ctx.BindJSON(&mission); err != nil {
+	if err := ctx.ShouldBindJSON(&mission); err != nil {
 		ctx.Error(myerrors.NewBadRequestError(err.Error()))
 		return
 	}
@@ -197,7 +202,12 @@ func (s *Server) handleGetMission(ctx *gin.Context) {
 }
 
 func (s *Server) handleGetAllMissions(ctx *gin.Context) {
-	missions, err := s.missionService.GetAll(ctx)
+	var query models.PaginationQuery
+	if err := ctx.ShouldBindQuery(&query); err != nil {
+		ctx.Error(myerrors.NewBadRequestError(err.Error()))
+		return
+	}
+	missions, err := s.missionService.GetAll(ctx, query)
 	if err != nil {
 		ctx.Error(err)
 		return
@@ -257,7 +267,7 @@ func (s *Server) handleUpdateTarget(ctx *gin.Context) {
 	}
 
 	var update models.TargetUpdate
-	if err := ctx.BindJSON(&update); err != nil {
+	if err := ctx.ShouldBindJSON(&update); err != nil {
 		ctx.Error(myerrors.NewBadRequestError(err.Error()))
 		return
 	}
@@ -295,7 +305,7 @@ func (s *Server) handleAddTarget(ctx *gin.Context) {
 		return
 	}
 	var target models.Target
-	if err := ctx.BindJSON(&target); err != nil {
+	if err := ctx.ShouldBindJSON(&target); err != nil {
 		ctx.Error(myerrors.NewBadRequestError(err.Error()))
 		return
 	}

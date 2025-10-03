@@ -10,12 +10,15 @@ import (
 	"github.com/4oBuko/spy-cat-agency/pkg/catapi"
 )
 
+var MaxCatsPerPage = 50
+var DefaultCatsPageSize = 10
+
 type CatService interface {
 	Add(ctx context.Context, cat models.Cat) (models.Cat, error)
 	GetById(ctx context.Context, id int64) (models.Cat, error)
 	Update(ctx context.Context, id int64, update models.CatUpdate) (models.Cat, error)
 	DeleteById(ctx context.Context, id int64) error
-	GetAll(ctx context.Context) ([]models.Cat, error)
+	GetAll(ctx context.Context, query models.PaginationQuery) (models.PaginatedCats, error)
 }
 
 type DefaultCatService struct {
@@ -86,10 +89,42 @@ func (d *DefaultCatService) DeleteById(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (d *DefaultCatService) GetAll(ctx context.Context) ([]models.Cat, error) {
-	cats, err := d.catRepo.GetAll(ctx)
+func (d *DefaultCatService) GetAll(ctx context.Context, query models.PaginationQuery) (models.PaginatedCats, error) {
+	count, err := d.catRepo.GetCount(ctx)
 	if err != nil {
-		return nil, myerrors.NewServerError(err.Error())
+		return models.PaginatedCats{}, myerrors.NewServerError(err.Error())
 	}
-	return cats, nil
+	if query.Size > MaxCatsPerPage {
+		return models.PaginatedCats{}, myerrors.NewBadRequestError("page size must be between 0 and 50")
+	}
+
+	var offset, limit int
+	if query.Page == 0 {
+		query.Page = 1
+	}
+	if query.Size == 0 {
+		query.Size = DefaultCatsPageSize
+	}
+
+	offset = (query.Page - 1) * query.Size
+	limit = query.Size
+	totalPages := (count + query.Size - 1) / query.Size
+	if query.Page > totalPages {
+		return models.PaginatedCats{}, myerrors.NewBadRequestError("request page is greater than total pages")
+	}
+	cats, err := d.catRepo.GetAll(ctx, limit, offset)
+	if err != nil {
+		return models.PaginatedCats{}, myerrors.NewServerError(err.Error())
+	}
+
+	pCats := models.PaginatedCats{
+		Cats: cats,
+		Meta: models.Pagination{
+			PageSize:   query.Size,
+			Page:       query.Page,
+			TotalPages: totalPages,
+			Total:      count,
+		},
+	}
+	return pCats, nil
 }
