@@ -3,17 +3,23 @@ package repositories
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 
 	"github.com/4oBuko/spy-cat-agency/internal/models"
 )
 
+var ErrCatNotFound = errors.New("cat not found")
+
 type CatRepository interface {
 	GetById(ctx context.Context, id int64) (models.Cat, error)
-	GetAll(ctx context.Context) ([]models.Cat, error)
+	GetAll(ctx context.Context, limit, offset int) ([]models.Cat, error)
 	DeleteById(ctx context.Context, d int64) error
 	Update(ctx context.Context, id int64, update models.CatUpdate) error
 	Add(ctx context.Context, cat models.Cat) (models.Cat, error)
 	IsBusy(ctx context.Context, catId int64) (bool, error)
+	Exists(ctx context.Context, id int64) error
+	GetCount(ctx context.Context) (int, error)
 }
 
 type MySQLCatRepository struct {
@@ -29,57 +35,63 @@ func (m *MySQLCatRepository) GetById(ctx context.Context, id int64) (models.Cat,
 	getByIdQuery := "SELECT id, cat_name, breed, years_of_experience, salary FROM cats where id = ?"
 	err := m.db.QueryRowContext(ctx, getByIdQuery, id).
 		Scan(&c.Id, &c.Name, &c.Breed, &c.YearsOfExperience, &c.Salary)
+
 	if err != nil {
-		return models.Cat{}, err
+		if err == sql.ErrNoRows {
+			return models.Cat{}, ErrCatNotFound
+		}
+		return models.Cat{}, fmt.Errorf("failed to get user by id: %w", err)
 	}
 	return c, nil
 }
 
-func (m *MySQLCatRepository) GetAll(ctx context.Context) ([]models.Cat, error) {
+func (m *MySQLCatRepository) GetAll(ctx context.Context, limit, offset int) ([]models.Cat, error) {
 	var cats []models.Cat
-	getAllQuery := "SELECT id, cat_name, breed, years_of_experience, salary FROM cats ORDER BY id"
-	rows, err := m.db.QueryContext(ctx, getAllQuery)
+	getAllQuery := "SELECT id, cat_name, breed, years_of_experience, salary FROM cats ORDER BY id LIMIT ? OFFSET ?"
+	rows, err := m.db.QueryContext(ctx, getAllQuery, limit, offset)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get all cats: %w", err)
 	}
+	defer rows.Close()
+
 	for rows.Next() {
 		cat := new(models.Cat)
 		if err := rows.Scan(&cat.Id, &cat.Name, &cat.Breed, &cat.YearsOfExperience, &cat.Salary); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("scan failed :%w", err)
 		}
 		cats = append(cats, *cat)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("rows iteration failed: %w", err)
 	}
 	return cats, nil
 }
 
 func (m *MySQLCatRepository) DeleteById(ctx context.Context, id int64) error {
+	err := m.Exists(ctx, id)
+	if err != nil {
+		return err
+	}
+
 	deleteCatQuery := "DELETE FROM cats where id = ?"
-	res, err := m.db.ExecContext(ctx, deleteCatQuery, id)
+	_, err = m.db.ExecContext(ctx, deleteCatQuery, id)
 	if err != nil {
-		return err
-	}
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return sql.ErrNoRows
+		return fmt.Errorf("failed to delete cat: %w", err)
 	}
 	return nil
 }
 
 func (m *MySQLCatRepository) Update(ctx context.Context, id int64, update models.CatUpdate) error {
+	err := m.Exists(ctx, id)
+	if err != nil {
+		return err
+	}
+
 	updateCatQuery := "UPDATE cats SET salary = ? where id = ?"
-	res, err := m.db.ExecContext(ctx, updateCatQuery, update.Salary, id)
+	_, err = m.db.ExecContext(ctx, updateCatQuery, update.Salary, id)
 	if err != nil {
-		return err
-	}
-	rows, err := res.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if rows == 0 {
-		return sql.ErrNoRows
+		return fmt.Errorf("failed to update cat: %w", err)
 	}
 	return nil
 }
@@ -88,23 +100,47 @@ func (m *MySQLCatRepository) Add(ctx context.Context, cat models.Cat) (models.Ca
 	newCatQuery := `INSERT INTO cats(cat_name, years_of_experience, salary, breed) VALUES(?,?,?,?)`
 	result, err := m.db.ExecContext(ctx, newCatQuery, cat.Name, cat.YearsOfExperience, cat.Salary, cat.Breed)
 	if err != nil {
-		return models.Cat{}, err
+		return models.Cat{}, fmt.Errorf("failed to add new cat: %w", err)
 	}
 
 	cat.Id, err = result.LastInsertId()
 	if err != nil {
-		return models.Cat{}, err
+		return models.Cat{}, fmt.Errorf("failed to get last insert id: %w", err)
 	}
 	return cat, nil
 }
 
-func (m *MySQLCatRepository) IsBusy(ctx context.Context, catId int64) (bool, error) {
+func (m *MySQLCatRepository) IsBusy(ctx context.Context, id int64) (bool, error) {
 	var busy bool
 	isBusyRequest := "SELECT EXISTS (SELECT id, cat_id FROM missions where cat_id = ? and completed = false)"
-	err := m.db.QueryRowContext(ctx, isBusyRequest, catId).Scan(&busy)
+	err := m.db.QueryRowContext(ctx, isBusyRequest, id).Scan(&busy)
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("failed to do busy check: %w", err)
 	}
 
 	return busy, nil
+}
+
+func (m *MySQLCatRepository) Exists(ctx context.Context, id int64) error {
+	var exists bool
+	catExistsQuery := "SELECT EXISTS (SELECT 1 FROM cats WHERE id = ?)"
+	err := m.db.QueryRowContext(ctx, catExistsQuery, id).Scan(&exists)
+
+	if err != nil {
+		return fmt.Errorf("existence check failed: %w", err)
+	}
+	if !exists {
+		return ErrCatNotFound
+	}
+	return nil
+}
+
+func (m *MySQLCatRepository) GetCount(ctx context.Context) (int, error) {
+	var count int
+	countQuery := "SELECT COUNT(*) FROM cats"
+	err := m.db.QueryRowContext(ctx, countQuery).Scan(&count)
+	if err != nil {
+		return 0, fmt.Errorf("failed to count cats: %w", err)
+	}
+	return count, nil
 }
