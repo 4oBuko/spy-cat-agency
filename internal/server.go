@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/4oBuko/spy-cat-agency/internal/models"
 	"github.com/4oBuko/spy-cat-agency/internal/myerrors"
@@ -56,6 +57,7 @@ var Endpoints = struct {
 }
 
 type Server struct {
+	httpServer     *http.Server
 	router         *gin.Engine
 	catService     services.CatService
 	catAPI         catapi.CatAPI
@@ -74,6 +76,7 @@ func NewServer(catService services.CatService, catAPI catapi.CatAPI, missionServ
 		catAPI:         catAPI,
 		missionService: missionService,
 	}
+
 	router.POST(Endpoints.CatCreate, server.handleAddCat)
 	router.GET(Endpoints.CatGet, server.handleGetCat)
 	router.GET(Endpoints.CatGetAll, server.handleGetAllCats)
@@ -91,6 +94,16 @@ func NewServer(catService services.CatService, catAPI catapi.CatAPI, missionServ
 	router.POST(Endpoints.TargetUpdate, server.handleUpdateTarget)
 	router.DELETE(Endpoints.TargetDelete, server.handleDeleteTarget)
 	router.POST(Endpoints.TargetAdd, server.handleAddTarget)
+
+	server.httpServer = &http.Server{
+		Addr:              ":8080",
+		Handler:           router,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
+		MaxHeaderBytes:    1 << 20, //1MB
+	}
 
 	return server
 }
@@ -347,7 +360,7 @@ func (s *Server) handleDeleteMission(ctx *gin.Context) {
 }
 
 func (s *Server) Run() error {
-	return s.router.Run()
+	return s.httpServer.ListenAndServe()
 }
 
 func (s *Server) Handler() http.Handler {
