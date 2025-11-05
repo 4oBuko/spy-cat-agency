@@ -2,6 +2,7 @@ package spycatagency
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"log"
@@ -361,6 +362,10 @@ func (s *Server) handleDeleteMission(ctx *gin.Context) {
 
 func (s *Server) Run() error {
 	return s.httpServer.ListenAndServe()
+}
+
+func (s *Server) Shutdown(ctx context.Context) error {
+	return s.httpServer.Shutdown(ctx)
 }
 
 func (s *Server) Handler() http.Handler {

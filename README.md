@@ -14,7 +14,7 @@ A REST API to manage your cats and their missions
 To run tests for this app you need to execute command bellow in the ROOT of the project. There is a mysql testcontainer for tests and it may take some time to pull a docker image and to start a container. Containers starts in 8-11 seconds.
 
 ```bash
-go test
+go test ./...
 ```
 
 ### Run the App

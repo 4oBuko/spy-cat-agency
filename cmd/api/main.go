@@ -1,8 +1,13 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"log"
+	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	spycatagency "github.com/4oBuko/spy-cat-agency/internal"
@@ -24,10 +29,26 @@ func main() {
 	missionService := services.NewDefaultMissionService(missionRepo, targetRepo, catRepo)
 	server := spycatagency.NewServer(catService, catAPI, missionService)
 
-	err := server.Run()
-	if err != nil {
-		log.Fatal(err)
+	go func() {
+		if err := server.Run(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("Server failed to start: %v", err)
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	log.Println("Shutting down server...")
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(ctx); err != nil {
+		log.Fatalf("Server forced to shutdown: %v", err)
 	}
+
+	log.Println("Server exited")
 }
 
 func initDBConnection(dsn string) *sql.DB {
