@@ -35,6 +35,7 @@ var server *spycatagency.Server
 var cleaner *dbCleaner
 
 func TestMain(m *testing.M) {
+	fmt.Println("Test env initialization started")
 	ctx := context.Background()
 	pwd, _ := os.Getwd()
 	initSQLPath := filepath.Join(pwd, "db", "init.sql")
@@ -78,6 +79,7 @@ func TestMain(m *testing.M) {
 	targetRepo := repositories.NewMySQLTargetRepository(db)
 	missionService := services.NewDefaultMissionService(missionRepo, targetRepo, catRepo)
 	server = spycatagency.NewServer(catService, catAPI, missionService)
+	fmt.Println("Initialization finished. Starting tests")
 	code := m.Run()
 	os.Exit(code)
 }
